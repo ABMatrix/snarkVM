@@ -116,7 +116,7 @@ fn snark_circuit_setup(c: &mut Criterion) {
                 num_variables,
             };
 
-            MarlinInst::circuit_setup(&universal_srs, &circuit).unwrap()
+            MarlinInst::circuit_setup(&universal_srs, &circuit, -1).unwrap()
         })
     });
 }
@@ -139,7 +139,7 @@ fn snark_prove(c: &mut Criterion) {
         num_variables,
     };
 
-    let params = MarlinInst::circuit_setup(&universal_srs, &circuit).unwrap();
+    let params = MarlinInst::circuit_setup(&universal_srs, &circuit, -1).unwrap();
 
     c.bench_function("snark_prove", move |b| {
         b.iter(|| {
@@ -152,6 +152,7 @@ fn snark_prove(c: &mut Criterion) {
                     num_variables,
                 },
                 rng,
+                -1,
             )
             .unwrap()
         })
@@ -179,7 +180,7 @@ fn snark_verify(c: &mut Criterion) {
         num_variables,
     };
 
-    let params = MarlinInst::circuit_setup(&universal_srs, &circuit).unwrap();
+    let params = MarlinInst::circuit_setup(&universal_srs, &circuit, -1).unwrap();
 
     let proof = MarlinInst::prove(
         &params.0,
@@ -190,6 +191,7 @@ fn snark_verify(c: &mut Criterion) {
             num_variables,
         },
         rng,
+        -1,
     )
     .unwrap();
 
@@ -222,7 +224,7 @@ fn snark_verify_gadget(c: &mut Criterion) {
         num_variables,
     };
 
-    let params = MarlinInst::circuit_setup(&universal_srs, &circuit).unwrap();
+    let params = MarlinInst::circuit_setup(&universal_srs, &circuit, -1).unwrap();
 
     let proof = MarlinInst::prove(
         &params.0,
@@ -233,6 +235,7 @@ fn snark_verify_gadget(c: &mut Criterion) {
             num_variables,
         },
         rng,
+        -1,
     )
     .unwrap();
 

@@ -343,8 +343,8 @@ fn verifier_on_groth16() {
             b: Some(b),
             c: Some(c),
         };
-        let (ipk, ivk) = MarlinInst::circuit_setup(&universal_srs, &circ).unwrap();
-        let proof = MarlinInst::prove(&ipk, &circ, rng).unwrap();
+        let (ipk, ivk) = MarlinInst::circuit_setup(&universal_srs, &circ, -1).unwrap();
+        let proof = MarlinInst::prove(&ipk, &circ, rng, -1).unwrap();
         let input = vec![a, b, c];
         assert!(MarlinInst::verify(&ivk, &input, &proof).unwrap());
         let mut cs = TestConstraintSystem::new();
@@ -380,8 +380,8 @@ fn verifier_on_groth16() {
             c: Some(c),
         };
 
-        let (ipk, ivk) = MarlinInst::circuit_setup(&universal_srs, &circ).unwrap();
-        let proof = MarlinInst::prove(&ipk, &circ, rng).unwrap();
+        let (ipk, ivk) = MarlinInst::circuit_setup(&universal_srs, &circ, -1).unwrap();
+        let proof = MarlinInst::prove(&ipk, &circ, rng, -1).unwrap();
         let input = vec![a, b, c];
         assert!(MarlinInst::verify(&ivk, &input, &proof).unwrap());
         let mut cs = TestConstraintSystem::new();
@@ -416,18 +416,19 @@ fn verifier_on_groth16() {
     circ2.generate_constraints(&mut cs).unwrap();
     assert!(cs.is_satisfied());
 
-    let (rec_pk1, rec_vk1) = Groth16::<BW6_761, Vec<Fq>>::setup(&circ1, &mut SRS::CircuitSpecific(rng)).unwrap();
+    let (rec_pk1, rec_vk1) = Groth16::<BW6_761, Vec<Fq>>::setup(&circ1, &mut SRS::CircuitSpecific(rng), -1).unwrap();
     let rec_input1 = circ1.public_input();
-    let rec_proof1 = Groth16::<_, Vec<Fq>>::prove(&rec_pk1, &circ1, rng).unwrap();
+    let rec_proof1 = Groth16::<_, Vec<Fq>>::prove(&rec_pk1, &circ1, rng, -1).unwrap();
     assert!(Groth16::verify(&rec_vk1, &rec_input1, &rec_proof1).unwrap());
 
     let rec_input2 = circ2.public_input();
     {
-        let (rec_pk2, rec_vk2) = Groth16::<BW6_761, Vec<Fq>>::setup(&circ2, &mut SRS::CircuitSpecific(rng)).unwrap();
-        let rec_proof2 = Groth16::<_, Vec<Fq>>::prove(&rec_pk2, &circ2, rng).unwrap();
+        let (rec_pk2, rec_vk2) =
+            Groth16::<BW6_761, Vec<Fq>>::setup(&circ2, &mut SRS::CircuitSpecific(rng), -1).unwrap();
+        let rec_proof2 = Groth16::<_, Vec<Fq>>::prove(&rec_pk2, &circ2, rng, -1).unwrap();
         assert!(Groth16::verify(&rec_vk2, &rec_input2, &rec_proof2).unwrap());
     }
-    let rec_proof2 = Groth16::<_, Vec<Fq>>::prove(&rec_pk1, &circ2, rng).unwrap();
+    let rec_proof2 = Groth16::<_, Vec<Fq>>::prove(&rec_pk1, &circ2, rng, -1).unwrap();
     assert!(Groth16::verify(&rec_vk1, &rec_input2, &rec_proof2).unwrap());
 
     let circ3 = RecursiveCircuit {
@@ -436,6 +437,6 @@ fn verifier_on_groth16() {
         input: Some(input1),
     };
     let rec_input3 = circ2.public_input();
-    let rec_proof3 = Groth16::<_, Vec<Fq>>::prove(&rec_pk1, &circ3, rng).unwrap();
+    let rec_proof3 = Groth16::<_, Vec<Fq>>::prove(&rec_pk1, &circ3, rng, -1).unwrap();
     assert!(!Groth16::verify(&rec_vk1, &rec_input3, &rec_proof3).unwrap());
 }

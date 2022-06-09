@@ -40,7 +40,7 @@ fn variable_base(c: &mut Criterion) {
 
     c.bench_function("MSM Variable Base", move |b| {
         b.iter(|| {
-            VariableBaseMSM::multi_scalar_mul(g.as_slice(), v.as_slice());
+            VariableBaseMSM::multi_scalar_mul(g.as_slice(), v.as_slice(), -1);
         })
     });
 }

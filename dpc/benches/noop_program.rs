@@ -32,6 +32,7 @@ fn noop_program_setup(c: &mut Criterion) {
             let (_proving_key, verifying_key) = <<Testnet2 as Network>::ProgramSNARK as SNARK>::setup(
                 &SynthesizedCircuit::<Testnet2>::Noop(Default::default()),
                 &mut *Testnet2::program_srs(rng).borrow_mut(),
+                -1,
             )
             .unwrap();
 

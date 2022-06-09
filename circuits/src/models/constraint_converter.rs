@@ -263,10 +263,11 @@ mod tests {
                 snarkvm_marlin::ahp::AHPForR1CS::<Fr, MarlinRecursiveMode>::max_degree(200, 200, 300).unwrap();
             let universal_srs = MarlinInst::universal_setup(max_degree, rng).unwrap();
 
-            let (index_pk, index_vk) = MarlinInst::circuit_setup(&universal_srs, &*Circuit::cs().cs.borrow()).unwrap();
+            let (index_pk, index_vk) =
+                MarlinInst::circuit_setup(&universal_srs, &*Circuit::cs().cs.borrow(), -1).unwrap();
             println!("Called circuit setup");
 
-            let proof = MarlinInst::prove(&index_pk, &*Circuit::cs().cs.borrow(), rng).unwrap();
+            let proof = MarlinInst::prove(&index_pk, &*Circuit::cs().cs.borrow(), rng, -1).unwrap();
             println!("Called prover");
 
             assert!(MarlinInst::verify(&index_vk, &[one, one], &proof).unwrap());

@@ -81,12 +81,15 @@ where
     fn setup<C: ConstraintSynthesizer<TargetField>, R: Rng + CryptoRng>(
         circuit: &C,
         srs: &mut SRS<R, Self::UniversalSetupParameters>,
+        gpu_index: i16,
     ) -> Result<(Self::ProvingKey, Self::VerifyingKey), SNARKError> {
         let (pk, vk) = match srs {
             SRS::CircuitSpecific(rng) => {
-                MarlinCore::<TargetField, BaseField, PC, FS, MM>::circuit_specific_setup(circuit, rng)?
+                MarlinCore::<TargetField, BaseField, PC, FS, MM>::circuit_specific_setup(circuit, rng, gpu_index)?
             }
-            SRS::Universal(srs) => MarlinCore::<TargetField, BaseField, PC, FS, MM>::circuit_setup(srs, circuit)?,
+            SRS::Universal(srs) => {
+                MarlinCore::<TargetField, BaseField, PC, FS, MM>::circuit_setup(srs, circuit, gpu_index)?
+            }
         };
         Ok((pk, vk))
     }
@@ -96,9 +99,10 @@ where
         circuit: &C,
         terminator: &AtomicBool,
         rng: &mut R,
+        gpu_index: i16,
     ) -> Result<Self::Proof, SNARKError> {
         match MarlinCore::<TargetField, BaseField, PC, FS, MM>::prove_with_terminator(
-            parameters, circuit, terminator, rng,
+            parameters, circuit, terminator, rng, gpu_index,
         ) {
             Ok(res) => Ok(res),
             Err(e) => Err(SNARKError::from(e)),
@@ -215,11 +219,11 @@ pub mod test {
 
             // Generate the circuit parameters.
 
-            let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng)).unwrap();
+            let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng), -1).unwrap();
 
             // Test native proof and verification.
 
-            let proof = TestSNARK::prove(&pk, &circ, &mut rng).unwrap();
+            let proof = TestSNARK::prove(&pk, &circ, &mut rng, -1).unwrap();
 
             assert!(
                 TestSNARK::verify(&vk.clone(), &vec![c], &proof).unwrap(),
@@ -296,11 +300,11 @@ pub mod test {
 
         // Generate the circuit parameters.
 
-        let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng)).unwrap();
+        let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng), -1).unwrap();
 
         // Test native proof and verification.
 
-        let proof = TestSNARK::prove(&pk, &circ, &mut rng).unwrap();
+        let proof = TestSNARK::prove(&pk, &circ, &mut rng, -1).unwrap();
 
         assert!(
             TestSNARK::verify(&vk, &vec![c], &proof).unwrap(),
@@ -546,11 +550,11 @@ pub mod multiple_input_tests {
 
             // Generate the circuit parameters.
 
-            let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng)).unwrap();
+            let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng), -1).unwrap();
 
             // Test native proof and verification.
 
-            let proof = TestSNARK::prove(&pk, &circ, &mut rng).unwrap();
+            let proof = TestSNARK::prove(&pk, &circ, &mut rng, -1).unwrap();
 
             assert!(
                 TestSNARK::verify(&vk.clone(), &[c, c].to_vec(), &proof).unwrap(),
@@ -627,11 +631,11 @@ pub mod multiple_input_tests {
 
             // Generate the circuit parameters.
 
-            let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng)).unwrap();
+            let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng), -1).unwrap();
 
             // Test native proof and verification.
 
-            let proof = TestSNARK::prove(&pk, &circ, &mut rng).unwrap();
+            let proof = TestSNARK::prove(&pk, &circ, &mut rng, -1).unwrap();
 
             assert!(
                 TestSNARK::verify(&vk.clone(), &[c, c].to_vec(), &proof).unwrap(),
@@ -684,11 +688,11 @@ pub mod multiple_input_tests {
 
         // Generate the circuit parameters.
 
-        let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng)).unwrap();
+        let (pk, vk) = TestSNARK::setup(&circ, &mut SRS::CircuitSpecific(&mut rng), -1).unwrap();
 
         // Test native proof and verification.
 
-        let proof = TestSNARK::prove(&pk, &circ, &mut rng).unwrap();
+        let proof = TestSNARK::prove(&pk, &circ, &mut rng, -1).unwrap();
 
         assert!(
             TestSNARK::verify(&vk, &[c, c].to_vec(), &proof).unwrap(),
@@ -710,11 +714,12 @@ pub mod multiple_input_tests {
         use snarkvm_algorithms::snark::groth16::Groth16;
         type NestedSNARK = Groth16<BW6_761, Vec<Fq>>;
 
-        let (nested_pk, nested_vk) = NestedSNARK::setup(&nested_circuit, &mut SRS::CircuitSpecific(&mut rng)).unwrap();
+        let (nested_pk, nested_vk) =
+            NestedSNARK::setup(&nested_circuit, &mut SRS::CircuitSpecific(&mut rng), -1).unwrap();
 
         // Test native proof and verification.
 
-        let nested_proof = NestedSNARK::prove(&nested_pk, &nested_circuit, &mut rng).unwrap();
+        let nested_proof = NestedSNARK::prove(&nested_pk, &nested_circuit, &mut rng, -1).unwrap();
 
         assert!(
             NestedSNARK::verify(&nested_vk, &vec![], &nested_proof).unwrap(),

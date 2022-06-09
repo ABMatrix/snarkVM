@@ -220,13 +220,13 @@ where
 
     pool.add_job(|| {
         let h_query = &params.h_query;
-        let res = VariableBaseMSM::multi_scalar_mul(h_query, &h_assignment);
+        let res = VariableBaseMSM::multi_scalar_mul(h_query, &h_assignment, -1);
         ResultWrapper::from_g1(res)
     });
 
     pool.add_job(|| {
         let l_aux_source = &params.l_query;
-        let res = VariableBaseMSM::multi_scalar_mul(l_aux_source, &aux_assignment);
+        let res = VariableBaseMSM::multi_scalar_mul(l_aux_source, &aux_assignment, -1);
         ResultWrapper::from_g1(res)
     });
     let results: Vec<_> = pool.execute_all();
@@ -268,7 +268,7 @@ fn calculate_coeff<G: AffineCurve>(
     assignment: &[<G::ScalarField as PrimeField>::BigInteger],
 ) -> G::Projective {
     let el = query[0];
-    let acc = VariableBaseMSM::multi_scalar_mul(&query[1..], assignment);
+    let acc = VariableBaseMSM::multi_scalar_mul(&query[1..], assignment, -1);
 
     let mut res = initial;
     res.add_assign_mixed(&el);

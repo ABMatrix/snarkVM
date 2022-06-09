@@ -174,7 +174,7 @@ mod tests {
         let labeled_polynomials = vec![&labeled_polynomial];
 
         // Construct commitments.
-        let (commitments, randomness) = PC::commit(&committer_key, labeled_polynomials.clone(), Some(rng)).unwrap();
+        let (commitments, randomness) = PC::commit(&committer_key, labeled_polynomials.clone(), Some(rng), -1).unwrap();
 
         let point = Fr::rand(rng);
         let challenge = Fr::rand(rng);
@@ -187,6 +187,7 @@ mod tests {
             challenge,
             &randomness,
             Some(rng),
+            -1,
         )
         .unwrap();
 

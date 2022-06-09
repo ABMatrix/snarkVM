@@ -68,14 +68,16 @@ pub trait SNARK: Clone + Debug {
     fn setup<C: ConstraintSynthesizer<Self::ScalarField>, R: Rng + CryptoRng>(
         circuit: &C,
         srs: &mut SRS<R, Self::UniversalSetupParameters>,
+        gpu_index: i16,
     ) -> Result<(Self::ProvingKey, Self::VerifyingKey), SNARKError>;
 
     fn prove<C: ConstraintSynthesizer<Self::ScalarField>, R: Rng + CryptoRng>(
         proving_key: &Self::ProvingKey,
         input_and_witness: &C,
         rng: &mut R,
+        gpu_index: i16,
     ) -> Result<Self::Proof, SNARKError> {
-        Self::prove_with_terminator(proving_key, input_and_witness, &AtomicBool::new(false), rng)
+        Self::prove_with_terminator(proving_key, input_and_witness, &AtomicBool::new(false), rng, gpu_index)
     }
 
     fn prove_with_terminator<C: ConstraintSynthesizer<Self::ScalarField>, R: Rng + CryptoRng>(
@@ -83,6 +85,7 @@ pub trait SNARK: Clone + Debug {
         input_and_witness: &C,
         terminator: &AtomicBool,
         rng: &mut R,
+        gpu_index: i16,
     ) -> Result<Self::Proof, SNARKError>;
 
     fn verify_prepared(

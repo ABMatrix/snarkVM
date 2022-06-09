@@ -44,15 +44,20 @@ impl VariableBaseMSM {
         acc
     }
 
+    #[allow(unused_variables)]
     pub fn multi_scalar_mul<G: AffineCurve>(
         bases: &[G],
         scalars: &[<G::ScalarField as PrimeField>::BigInteger],
+        gpu_index: i16,
     ) -> G::Projective {
         if TypeId::of::<G>() == TypeId::of::<G1Affine>() {
             #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
             {
+                if gpu_index == -1 {
+                    return standard::msm_standard(bases, scalars);
+                }
                 if !HAS_CUDA_FAILED.load(Ordering::SeqCst) {
-                    match cuda::msm_cuda(bases, scalars) {
+                    match cuda::msm_cuda(bases, scalars, gpu_index) {
                         Ok(x) => return x,
                         Err(_e) => {
                             HAS_CUDA_FAILED.store(true, Ordering::SeqCst);

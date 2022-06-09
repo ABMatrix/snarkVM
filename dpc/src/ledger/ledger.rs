@@ -152,6 +152,7 @@ impl<N: Network> Ledger<N> {
         is_public: bool,
         terminator: &AtomicBool,
         rng: &mut R,
+        gpu_index: i16,
     ) -> Result<Record<N>> {
         // Prepare the new block.
         let previous_block_hash = self.latest_block_hash();
@@ -199,7 +200,7 @@ impl<N: Network> Ledger<N> {
         );
 
         // Mine the next block.
-        let block = Block::mine(&template, terminator, rng)?;
+        let block = Block::mine(&template, terminator, rng, gpu_index)?;
 
         // Attempt to add the block to the canon chain.
         self.add_next_block(&block)?;
@@ -248,7 +249,7 @@ mod tests {
 
             assert_eq!(0, ledger.latest_block_height());
             ledger
-                .mine_next_block(recipient.address(), true, &AtomicBool::new(false), rng)
+                .mine_next_block(recipient.address(), true, &AtomicBool::new(false), rng, -1)
                 .unwrap();
             assert_eq!(1, ledger.latest_block_height());
         }
@@ -258,7 +259,7 @@ mod tests {
 
             assert_eq!(0, ledger.latest_block_height());
             ledger
-                .mine_next_block(recipient.address(), true, &AtomicBool::new(false), rng)
+                .mine_next_block(recipient.address(), true, &AtomicBool::new(false), rng, -1)
                 .unwrap();
             assert_eq!(1, ledger.latest_block_height());
         }

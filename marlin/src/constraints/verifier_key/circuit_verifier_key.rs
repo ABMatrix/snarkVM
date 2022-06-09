@@ -501,7 +501,7 @@ mod test {
             num_variables,
         };
 
-        let (_circuit_pk, circuit_vk) = MarlinInst::circuit_setup(&universal_srs, &circ).unwrap();
+        let (_circuit_pk, circuit_vk) = MarlinInst::circuit_setup(&universal_srs, &circ, -1).unwrap();
 
         // Allocate the circuit vk gadget.
         let circuit_vk_gadget =

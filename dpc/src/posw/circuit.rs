@@ -197,6 +197,7 @@ mod test {
             <<N as Network>::PoSWSNARK as SNARK>::setup::<_, R>(
                 &PoSWCircuit::<N>::blank().unwrap(),
                 &mut SRS::<R, _>::Universal(&universal_srs),
+                -1,
             )
             .unwrap()
         };
@@ -223,7 +224,7 @@ mod test {
         // Compute the proof.
         let proof = {
             let timer = Instant::now();
-            let proof = <<N as Network>::PoSWSNARK as SNARK>::prove(&proving_key, &assigned_circuit, rng).unwrap();
+            let proof = <<N as Network>::PoSWSNARK as SNARK>::prove(&proving_key, &assigned_circuit, rng, -1).unwrap();
             println!("\nPosW elapsed time: {} ms\n", (Instant::now() - timer).as_millis());
             proof
         };

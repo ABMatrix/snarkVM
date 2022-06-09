@@ -893,6 +893,7 @@ mod test {
         PoseidonSponge,
         PoseidonSpongeGadget as PoseidonSpongeVar,
     };
+
     /// Compute the hash of the circuit verifying key.
     /// Used internally in Marlin
     pub(crate) fn compute_vk_hash<TargetField, BaseField, PC, FS>(
@@ -987,12 +988,12 @@ mod test {
             num_variables,
         };
 
-        let (circuit_pk, circuit_vk) = MarlinInst::circuit_setup(&universal_srs, &circ).unwrap();
+        let (circuit_pk, circuit_vk) = MarlinInst::circuit_setup(&universal_srs, &circ, -1).unwrap();
 
         let public_input = [c];
 
         // Construct a proof.
-        let proof = MarlinInst::prove(&circuit_pk, &circ, rng).unwrap();
+        let proof = MarlinInst::prove(&circuit_pk, &circ, rng, -1).unwrap();
 
         let verification = MarlinInst::verify(&circuit_vk, &public_input, &proof).unwrap();
 

@@ -49,7 +49,7 @@ fn variable_base_test_with_bls12() {
         .collect::<Vec<_>>();
 
     let naive = naive_variable_base_msm(g.as_slice(), v.as_slice());
-    let fast = VariableBaseMSM::multi_scalar_mul(g.as_slice(), v.as_slice());
+    let fast = VariableBaseMSM::multi_scalar_mul(g.as_slice(), v.as_slice(), -1);
 
     assert_eq!(naive.into_affine(), fast.into_affine());
 }
@@ -68,7 +68,7 @@ fn variable_base_test_with_bls12_unequal_numbers() {
         .collect::<Vec<_>>();
 
     let naive = naive_variable_base_msm(g.as_slice(), v.as_slice());
-    let fast = VariableBaseMSM::multi_scalar_mul(g.as_slice(), v.as_slice());
+    let fast = VariableBaseMSM::multi_scalar_mul(g.as_slice(), v.as_slice(), -1);
 
     assert_eq!(naive.into_affine(), fast.into_affine());
 }

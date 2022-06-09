@@ -49,9 +49,10 @@ impl<N: Network> PoSWScheme<N> for PoSW<N> {
     ///
     fn setup<R: Rng + CryptoRng>(
         srs: &mut SRS<R, <<N as Network>::PoSWSNARK as SNARK>::UniversalSetupParameters>,
+        gpu_index: i16,
     ) -> Result<Self, PoSWError> {
         let (proving_key, verifying_key) =
-            <<N as Network>::PoSWSNARK as SNARK>::setup::<_, R>(&PoSWCircuit::<N>::blank()?, srs)?;
+            <<N as Network>::PoSWSNARK as SNARK>::setup::<_, R>(&PoSWCircuit::<N>::blank()?, srs, gpu_index)?;
 
         Ok(Self {
             proving_key: Some(proving_key),
@@ -94,6 +95,7 @@ impl<N: Network> PoSWScheme<N> for PoSW<N> {
         block_template: &BlockTemplate<N>,
         terminator: &AtomicBool,
         rng: &mut R,
+        gpu_index: i16,
     ) -> Result<BlockHeader<N>, PoSWError> {
         const MAXIMUM_MINING_DURATION: i64 = 600; // 600 seconds = 10 minutes.
 
@@ -112,7 +114,7 @@ impl<N: Network> PoSWScheme<N> for PoSW<N> {
             }
 
             // Run one iteration of PoSW.
-            let proof = self.prove_once_unchecked(&mut circuit, block_template, terminator, rng)?;
+            let proof = self.prove_once_unchecked(&mut circuit, block_template, terminator, rng, gpu_index)?;
 
             // Check if the updated block header is valid.
             if self.verify(
@@ -146,6 +148,7 @@ impl<N: Network> PoSWScheme<N> for PoSW<N> {
         block_template: &BlockTemplate<N>,
         terminator: &AtomicBool,
         rng: &mut R,
+        gpu_index: i16,
     ) -> Result<PoSWProof<N>, PoSWError> {
         let pk = self.proving_key.as_ref().expect("tried to mine without a PK set up");
 
@@ -160,14 +163,15 @@ impl<N: Network> PoSWScheme<N> for PoSW<N> {
             // Construct a PoSW proof.
             Ok(PoSWProof::<N>::new_hiding(
                 <crate::testnet2::DeprecatedPoSWSNARK<N> as SNARK>::prove_with_terminator(
-                    &pk, circuit, terminator, rng,
+                    &pk, circuit, terminator, rng, gpu_index,
                 )?
                 .into(),
             ))
         } else {
             // Construct a PoSW proof.
             Ok(PoSWProof::<N>::new(
-                <<N as Network>::PoSWSNARK as SNARK>::prove_with_terminator(pk, circuit, terminator, rng)?.into(),
+                <<N as Network>::PoSWSNARK as SNARK>::prove_with_terminator(pk, circuit, terminator, rng, gpu_index)?
+                    .into(),
             ))
         }
     }
@@ -265,7 +269,7 @@ mod tests {
 
         // Construct a block header.
         let block_header = Testnet2::posw()
-            .mine(&block_template, &AtomicBool::new(false), &mut thread_rng())
+            .mine(&block_template, &AtomicBool::new(false), &mut thread_rng(), -1)
             .unwrap();
 
         assert_eq!(

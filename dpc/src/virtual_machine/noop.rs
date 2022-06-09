@@ -67,6 +67,7 @@ impl<N: Network> Function<N> for Noop<N> {
             N::noop_circuit_proving_key(),
             &SynthesizedCircuit::Noop(public),
             &mut rand::thread_rng(),
+            -1,
         )?
         .into();
         assert!(self.verify(&public, &proof));
@@ -129,6 +130,7 @@ impl<N: Network> ConstraintSynthesizer<N::InnerScalarField> for SynthesizedCircu
 //
 #[derive(Clone, Debug)]
 pub struct NoopPrivateVariables<N: Network>(PhantomData<N>);
+
 impl<N: Network> ProgramPrivateVariables<N> for NoopPrivateVariables<N> {
     fn new_blank() -> Result<Self> {
         Ok(Self(PhantomData))

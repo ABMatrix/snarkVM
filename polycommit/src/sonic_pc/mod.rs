@@ -48,9 +48,11 @@ use core::{
 use rand_core::{RngCore, SeedableRng};
 
 mod data_structures;
+
 pub use data_structures::*;
 
 mod gadgets;
+
 pub use gadgets::*;
 
 /// Polynomial commitment based on [[KZG10]][kzg], with degree enforcement and
@@ -240,6 +242,7 @@ impl<E: PairingEngine> PolynomialCommitment<E::Fr, E::Fq> for SonicKZG10<E> {
         polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<E::Fr>>,
         terminator: &AtomicBool,
         rng: Option<&mut dyn RngCore>,
+        gpu_index: i16,
     ) -> Result<(Vec<LabeledCommitment<Self::Commitment>>, Vec<Self::Randomness>), Error> {
         let rng = &mut crate::optional_rng::OptionalRng(rng);
         let commit_time = start_timer!(|| "Committing to polynomials");
@@ -292,6 +295,7 @@ impl<E: PairingEngine> PolynomialCommitment<E::Fr, E::Fq> for SonicKZG10<E> {
                     hiding_bound,
                     terminator,
                     rng.as_mut().map(|s| s as _),
+                    gpu_index,
                 )?;
                 end_timer!(commit_time);
                 Ok((LabeledCommitment::new(label.to_string(), comm, degree_bound), rand))
@@ -316,6 +320,7 @@ impl<E: PairingEngine> PolynomialCommitment<E::Fr, E::Fq> for SonicKZG10<E> {
         opening_challenge: E::Fr,
         rands: impl IntoIterator<Item = &'a Self::Randomness>,
         _rng: Option<&mut dyn RngCore>,
+        gpu_index: i16,
     ) -> Result<Self::Proof, Error>
     where
         Self::Randomness: 'a,
@@ -341,7 +346,7 @@ impl<E: PairingEngine> PolynomialCommitment<E::Fr, E::Fq> for SonicKZG10<E> {
         }
 
         let proof_time = start_timer!(|| "Creating proof for polynomials");
-        let proof = kzg10::KZG10::open(&ck.powers(), &combined_polynomial, point, &combined_rand)?;
+        let proof = kzg10::KZG10::open(&ck.powers(), &combined_polynomial, point, &combined_rand, gpu_index)?;
         end_timer!(proof_time);
 
         Ok(proof)
@@ -456,6 +461,7 @@ impl<E: PairingEngine> PolynomialCommitment<E::Fr, E::Fq> for SonicKZG10<E> {
         opening_challenge: E::Fr,
         rands: impl IntoIterator<Item = &'a Self::Randomness>,
         rng: Option<&mut dyn RngCore>,
+        gpu_index: i16,
     ) -> Result<BatchLCProof<E::Fr, E::Fq, Self>, Error>
     where
         Self::Randomness: 'a,
@@ -529,6 +535,7 @@ impl<E: PairingEngine> PolynomialCommitment<E::Fr, E::Fq> for SonicKZG10<E> {
             opening_challenge,
             lc_randomness.iter(),
             rng,
+            gpu_index,
         )?;
         Ok(BatchLCProof {
             proof,
@@ -626,6 +633,7 @@ impl<E: PairingEngine> PolynomialCommitment<E::Fr, E::Fq> for SonicKZG10<E> {
         query_set: &QuerySet<E::Fr>,
         opening_challenges: &dyn Fn(u64) -> E::Fr,
         rands: impl IntoIterator<Item = &'a Self::Randomness>,
+        gpu_index: i16,
     ) -> Result<BatchLCProof<E::Fr, E::Fq, Self>, Error>
     where
         Self::Randomness: 'a,
@@ -692,6 +700,7 @@ impl<E: PairingEngine> PolynomialCommitment<E::Fr, E::Fq> for SonicKZG10<E> {
             query_set,
             opening_challenges,
             lc_randomness.iter(),
+            gpu_index,
         )?;
 
         Ok(BatchLCProof {
@@ -791,6 +800,7 @@ impl<E: PairingEngine> SonicKZG10<E> {
         point: &'a E::Fr,
         opening_challenges: &dyn Fn(u64) -> E::Fr,
         rands: impl IntoIterator<Item = &'a <Self as PolynomialCommitment<E::Fr, E::Fq>>::Randomness>,
+        gpu_index: i16,
     ) -> Result<<Self as PolynomialCommitment<E::Fr, E::Fq>>::Proof, Error>
     where
         <Self as PolynomialCommitment<E::Fr, E::Fq>>::Randomness: 'a,
@@ -815,7 +825,7 @@ impl<E: PairingEngine> SonicKZG10<E> {
         }
 
         let proof_time = start_timer!(|| "Creating proof for polynomials");
-        let proof = kzg10::KZG10::open(&ck.powers(), &combined_polynomial, *point, &combined_rand)?;
+        let proof = kzg10::KZG10::open(&ck.powers(), &combined_polynomial, *point, &combined_rand, gpu_index)?;
         end_timer!(proof_time);
 
         Ok(proof)
@@ -832,6 +842,7 @@ impl<E: PairingEngine> SonicKZG10<E> {
         query_set: &QuerySet<E::Fr>,
         opening_challenges: &dyn Fn(u64) -> E::Fr,
         rands: impl IntoIterator<Item = &'a <Self as PolynomialCommitment<E::Fr, E::Fq>>::Randomness>,
+        gpu_index: i16,
     ) -> Result<<Self as PolynomialCommitment<E::Fr, E::Fq>>::BatchProof, Error>
     where
         <Self as PolynomialCommitment<E::Fr, E::Fq>>::Randomness: 'a,
@@ -884,6 +895,7 @@ impl<E: PairingEngine> SonicKZG10<E> {
                 query,
                 opening_challenges,
                 query_rands,
+                gpu_index,
             )?;
 
             end_timer!(proof_time);

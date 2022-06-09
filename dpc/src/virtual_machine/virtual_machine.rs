@@ -101,24 +101,24 @@ impl<N: Network> VirtualMachine<N> {
         );
         let inner_private = InnerPrivateVariables::new(request, &response)?;
         let inner_circuit = InnerCircuit::<N>::new(inner_public, inner_private);
-        let inner_proof = N::InnerSNARK::prove(N::inner_proving_key(), &inner_circuit, rng)?;
+        let inner_proof = N::InnerSNARK::prove(N::inner_proving_key(), &inner_circuit, rng, -1)?;
 
         assert!(N::InnerSNARK::verify(
             N::inner_verifying_key(),
             &inner_public,
-            &inner_proof
+            &inner_proof,
         )?);
 
         // Construct the outer circuit public and private variables.
         let outer_public = OuterPublicVariables::new(inner_public, N::inner_circuit_id());
         let outer_private = OuterPrivateVariables::new(N::inner_verifying_key().clone(), inner_proof.into(), execution);
         let outer_circuit = OuterCircuit::<N>::new(outer_public.clone(), outer_private);
-        let outer_proof = N::OuterSNARK::prove(N::outer_proving_key(), &outer_circuit, rng)?;
+        let outer_proof = N::OuterSNARK::prove(N::outer_proving_key(), &outer_circuit, rng, -1)?;
 
         assert!(N::OuterSNARK::verify(
             N::outer_verifying_key(),
             &outer_public,
-            &outer_proof
+            &outer_proof,
         )?);
 
         // Construct the transition.
@@ -301,12 +301,12 @@ impl<N: Network> VirtualMachine<N> {
         );
         let inner_private = InnerPrivateVariables::new(request, &response)?;
         let inner_circuit = InnerCircuit::<N>::new(inner_public, inner_private);
-        let inner_proof = N::InnerSNARK::prove(N::inner_proving_key(), &inner_circuit, rng)?;
+        let inner_proof = N::InnerSNARK::prove(N::inner_proving_key(), &inner_circuit, rng, -1)?;
 
         assert!(N::InnerSNARK::verify(
             N::inner_verifying_key(),
             &inner_public,
-            &inner_proof
+            &inner_proof,
         )?);
 
         // Compute the execution.
@@ -327,12 +327,12 @@ impl<N: Network> VirtualMachine<N> {
         let outer_public = OuterPublicVariables::new(inner_public, N::inner_circuit_id());
         let outer_private = OuterPrivateVariables::new(N::inner_verifying_key().clone(), inner_proof.into(), execution);
         let outer_circuit = OuterCircuit::<N>::new(outer_public.clone(), outer_private);
-        let outer_proof = N::OuterSNARK::prove(N::outer_proving_key(), &outer_circuit, rng)?;
+        let outer_proof = N::OuterSNARK::prove(N::outer_proving_key(), &outer_circuit, rng, -1)?;
 
         assert!(N::OuterSNARK::verify(
             N::outer_verifying_key(),
             &outer_public,
-            &outer_proof
+            &outer_proof,
         )?);
 
         // Construct the transition.

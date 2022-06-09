@@ -239,7 +239,7 @@ mod tests {
         let labeled_polynomial = LabeledPolynomial::new("test_polynomial".to_string(), random_polynomial, None, None);
 
         // Construct commitments.
-        let (commitments, _randomness) = PC::commit(&committer_key, vec![&labeled_polynomial], Some(rng)).unwrap();
+        let (commitments, _randomness) = PC::commit(&committer_key, vec![&labeled_polynomial], Some(rng), -1).unwrap();
 
         for (i, commitment) in commitments.iter().enumerate() {
             let commitment_gadget =
@@ -312,7 +312,7 @@ mod tests {
         let labeled_polynomial = LabeledPolynomial::new("test_polynomial".to_string(), random_polynomial, None, None);
 
         // Construct commitments.
-        let (commitments, _randomness) = PC::commit(&committer_key, vec![&labeled_polynomial], Some(rng)).unwrap();
+        let (commitments, _randomness) = PC::commit(&committer_key, vec![&labeled_polynomial], Some(rng), -1).unwrap();
 
         for (i, commitment) in commitments.iter().enumerate() {
             let commitment_gadget =

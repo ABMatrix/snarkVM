@@ -117,7 +117,7 @@ fn dpc_execute_circuits_test<N: Network>(expected_inner_num_constraints: usize, 
 
     // Generate inner circuit parameters and proof for verification in the outer circuit.
     let (inner_proving_key, inner_verifying_key) =
-        <N as Network>::InnerSNARK::setup(&InnerCircuit::<N>::blank(), &mut SRS::CircuitSpecific(rng)).unwrap();
+        <N as Network>::InnerSNARK::setup(&InnerCircuit::<N>::blank(), &mut SRS::CircuitSpecific(rng), -1).unwrap();
 
     // NOTE: Do not change this to `N::inner_circuit_id()` as that will load the *saved* inner circuit VK.
     let inner_circuit_id = <N as Network>::inner_circuit_id_crh()
@@ -125,7 +125,7 @@ fn dpc_execute_circuits_test<N: Network>(expected_inner_num_constraints: usize, 
         .unwrap()
         .into();
 
-    let inner_proof = <N as Network>::InnerSNARK::prove(&inner_proving_key, &inner_circuit, rng).unwrap();
+    let inner_proof = <N as Network>::InnerSNARK::prove(&inner_proving_key, &inner_circuit, rng, -1).unwrap();
     assert_eq!(N::INNER_PROOF_SIZE_IN_BYTES, inner_proof.to_bytes_le().unwrap().len());
 
     // Verify that the inner circuit proof passes.
@@ -164,7 +164,7 @@ fn dpc_execute_circuits_test<N: Network>(expected_inner_num_constraints: usize, 
 
     // Generate outer circuit parameters and proof.
     let (outer_proving_key, outer_verifying_key) =
-        <N as Network>::OuterSNARK::setup(&outer_circuit, &mut SRS::CircuitSpecific(rng)).unwrap();
+        <N as Network>::OuterSNARK::setup(&outer_circuit, &mut SRS::CircuitSpecific(rng), -1).unwrap();
 
     // // NOTE: Do not change this to `N::inner_circuit_id()` as that will load the *saved* inner circuit VK.
     // let inner_circuit_id = <N as Network>::inner_circuit_id_crh()
@@ -172,7 +172,7 @@ fn dpc_execute_circuits_test<N: Network>(expected_inner_num_constraints: usize, 
     //     .unwrap()
     //     .into();
 
-    let outer_proof = <N as Network>::OuterSNARK::prove(&outer_proving_key, &outer_circuit, rng).unwrap();
+    let outer_proof = <N as Network>::OuterSNARK::prove(&outer_proving_key, &outer_circuit, rng, -1).unwrap();
     assert_eq!(N::OUTER_PROOF_SIZE_IN_BYTES, outer_proof.to_bytes_le().unwrap().len());
 
     // Verify that the outer circuit proof passes.

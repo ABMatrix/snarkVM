@@ -308,8 +308,8 @@ fn handle_cuda_request(context: &mut CudaContext, request: &CudaRequest) -> Resu
 }
 
 /// Initialize the cuda request handler.
-fn initialize_cuda_request_handler(input: crossbeam_channel::Receiver<CudaRequest>) {
-    match load_cuda_program() {
+fn initialize_cuda_request_handler(input: crossbeam_channel::Receiver<CudaRequest>, device: &Device) {
+    match load_cuda_program(device) {
         Ok(program) => {
             let num_groups = (SCALAR_BITS + BIT_WIDTH - 1) / BIT_WIDTH;
 
@@ -337,20 +337,41 @@ fn initialize_cuda_request_handler(input: crossbeam_channel::Receiver<CudaReques
     }
 }
 
+fn initialize_cuda_request_dispatcher() {
+    if let Ok(mut dispatchers) = CUDA_DISPATCH.write() {
+        if dispatchers.len() > 0 {
+            return;
+        }
+        let devices: Vec<_> = Device::all();
+        for device in devices {
+            let (sender, receiver) = crossbeam_channel::bounded(4096);
+            std::thread::spawn(move || initialize_cuda_request_handler(receiver, device));
+            dispatchers.push(sender);
+        }
+    }
+}
+
 lazy_static::lazy_static! {
-    static ref CUDA_DISPATCH: crossbeam_channel::Sender<CudaRequest> = {
-        let (sender, receiver) = crossbeam_channel::bounded(4096);
-        std::thread::spawn(move || initialize_cuda_request_handler(receiver));
-        sender
-    };
+    static ref CUDA_DISPATCH: RwLock<Vec<crossbeam_channel::Sender<CudaRequest>>> =
+        RwLock::new(Vec::new());
 }
 
 pub(super) fn msm_cuda<G: AffineCurve>(
     mut bases: &[G],
     mut scalars: &[<G::ScalarField as PrimeField>::BigInteger],
+    gpu_index: i16,
 ) -> Result<G::Projective, GPUError> {
     if TypeId::of::<G>() != TypeId::of::<G1Affine>() {
         unimplemented!("trying to use cuda for unsupported curve");
+    }
+    let len;
+    if let Ok(dispatchers) = CUDA_DISPATCH.read() {
+        len = dispatchers.len();
+    } else {
+        len = 0;
+    }
+    if len == 0 {
+        initialize_cuda_request_dispatcher();
     }
 
     match bases.len() < scalars.len() {
@@ -368,16 +389,24 @@ pub(super) fn msm_cuda<G: AffineCurve>(
     }
 
     let (sender, receiver) = crossbeam_channel::bounded(1);
-    CUDA_DISPATCH
-        .send(CudaRequest {
-            bases: unsafe { std::mem::transmute(bases.to_vec()) },
-            scalars: unsafe { std::mem::transmute(scalars.to_vec()) },
-            response: sender,
-        })
-        .map_err(|_| GPUError::DeviceNotFound)?;
-    match receiver.recv() {
-        Ok(x) => unsafe { std::mem::transmute_copy(&x) },
-        Err(_) => Err(GPUError::DeviceNotFound),
+    if let Ok(dispatchers) = CUDA_DISPATCH.read() {
+        if let Some(dispatcher) = dispatchers.get(gpu_index as usize) {
+            dispatcher
+                .send(CudaRequest {
+                    bases: unsafe { std::mem::transmute(bases.to_vec()) },
+                    scalars: unsafe { std::mem::transmute(scalars.to_vec()) },
+                    response: sender,
+                })
+                .map_err(|_| GPUError::DeviceNotFound)?;
+            match receiver.recv() {
+                Ok(x) => unsafe { std::mem::transmute_copy(&x) },
+                Err(_) => Err(GPUError::DeviceNotFound),
+            }
+        } else {
+            Err(GPUError::DeviceNotFound)
+        }
+    } else {
+        Err(GPUError::Generic("Failed to read cuda dispatchers".to_string()))
     }
 }
 

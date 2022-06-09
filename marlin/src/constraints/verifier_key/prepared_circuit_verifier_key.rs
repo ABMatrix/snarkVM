@@ -301,7 +301,7 @@ mod test {
             num_variables,
         };
 
-        let (_circuit_pk, circuit_vk) = MarlinInst::circuit_setup(&universal_srs, &circ).unwrap();
+        let (_circuit_pk, circuit_vk) = MarlinInst::circuit_setup(&universal_srs, &circ, -1).unwrap();
 
         let prepared_circuit_vk = circuit_vk.prepare();
 

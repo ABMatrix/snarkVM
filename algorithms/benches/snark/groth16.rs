@@ -90,6 +90,7 @@ fn snark_setup(c: &mut Criterion) {
                     num_constraints,
                 },
                 &mut SRS::CircuitSpecific(rng),
+                -1,
             )
             .unwrap()
         })
@@ -111,6 +112,7 @@ fn snark_prove(c: &mut Criterion) {
             num_constraints,
         },
         &mut SRS::CircuitSpecific(rng),
+        -1,
     )
     .unwrap();
 
@@ -123,6 +125,7 @@ fn snark_prove(c: &mut Criterion) {
                     num_constraints,
                 },
                 rng,
+                -1,
             )
             .unwrap()
         })

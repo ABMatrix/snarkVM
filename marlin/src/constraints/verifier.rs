@@ -380,10 +380,10 @@ mod test {
             num_variables,
         };
 
-        let (circuit_pk, circuit_vk) = MarlinInst::circuit_setup(&universal_srs, &circ).unwrap();
+        let (circuit_pk, circuit_vk) = MarlinInst::circuit_setup(&universal_srs, &circ, -1).unwrap();
         println!("Called index");
 
-        let proof = MarlinInst::prove(&circuit_pk, &circ, rng).unwrap();
+        let proof = MarlinInst::prove(&circuit_pk, &circ, rng, -1).unwrap();
         println!("Called prover");
 
         assert!(MarlinInst::verify(&circuit_vk, &[c], &proof).unwrap());

@@ -105,6 +105,7 @@ pub fn noop_setup<N: Network>() -> Result<()> {
     let (proving_key, verifying_key) = <N::ProgramSNARK as SNARK>::setup(
         &SynthesizedCircuit::<N>::Noop(Default::default()),
         &mut *N::program_srs(&mut thread_rng()).borrow_mut(),
+        -1,
     )?;
 
     let noop_function_id = hex::encode(<N as Network>::function_id(&verifying_key)?.to_bytes_le()?);
@@ -136,6 +137,7 @@ pub fn inner_setup<N: Network>() -> Result<()> {
     let (inner_proving_key, inner_verifying_key) = N::InnerSNARK::setup(
         &InnerCircuit::<N>::blank(),
         &mut SRS::CircuitSpecific(&mut thread_rng()),
+        -1,
     )?;
 
     let inner_circuit_id = hex::encode(
@@ -177,7 +179,8 @@ pub fn outer_setup<N: Network>() -> Result<()> {
                 <N::InnerSNARK as SNARK>::ProvingKey::read_le(InnerProvingKeyBytes::load_bytes()?.as_slice())?;
             let inner_verifying_key =
                 <N::InnerSNARK as SNARK>::VerifyingKey::read_le(InnerVerifyingKeyBytes::load_bytes()?.as_slice())?;
-            let inner_proof = N::InnerSNARK::prove(&inner_proving_key, &InnerCircuit::<N>::blank(), &mut thread_rng())?;
+            let inner_proof =
+                N::InnerSNARK::prove(&inner_proving_key, &InnerCircuit::<N>::blank(), &mut thread_rng(), -1)?;
 
             (inner_proof.into(), inner_verifying_key)
         }
@@ -188,7 +191,8 @@ pub fn outer_setup<N: Network>() -> Result<()> {
                 <N::InnerSNARK as SNARK>::ProvingKey::read_le(InnerProvingKeyBytes::load_bytes()?.as_slice())?;
             let inner_verifying_key =
                 <N::InnerSNARK as SNARK>::VerifyingKey::read_le(InnerVerifyingKeyBytes::load_bytes()?.as_slice())?;
-            let inner_proof = N::InnerSNARK::prove(&inner_proving_key, &InnerCircuit::<N>::blank(), &mut thread_rng())?;
+            let inner_proof =
+                N::InnerSNARK::prove(&inner_proving_key, &InnerCircuit::<N>::blank(), &mut thread_rng(), -1)?;
 
             (inner_proof.into(), inner_verifying_key)
         }
@@ -206,6 +210,7 @@ pub fn outer_setup<N: Network>() -> Result<()> {
             )?,
         }),
         &mut SRS::CircuitSpecific(&mut thread_rng()),
+        -1,
     )?;
 
     let outer_proving_key = outer_proving_key.to_bytes_le()?;
@@ -240,9 +245,10 @@ pub fn posw_setup<N: Network>() -> Result<()> {
     let srs_bytes = universal_srs.to_bytes_le()?;
     println!("srs\n\tsize - {}", srs_bytes.len());
 
-    let posw = <N::PoSW as PoSWScheme<N>>::setup::<ThreadRng>(&mut SRS::<ThreadRng, _>::Universal(
-        &FromBytes::read_le(&srs_bytes[..])?,
-    ))?;
+    let posw = <N::PoSW as PoSWScheme<N>>::setup::<ThreadRng>(
+        &mut SRS::<ThreadRng, _>::Universal(&FromBytes::read_le(&srs_bytes[..])?),
+        -1,
+    )?;
 
     let posw_proving_key = posw
         .proving_key()

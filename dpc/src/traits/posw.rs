@@ -26,6 +26,7 @@ pub trait PoSWScheme<N: Network>: Clone + Send + Sync {
     /// Sets up an instance of PoSW using an SRS.
     fn setup<R: Rng + CryptoRng>(
         srs: &mut SRS<R, <<N as Network>::PoSWSNARK as SNARK>::UniversalSetupParameters>,
+        gpu_index: i16,
     ) -> Result<Self, PoSWError>;
 
     /// Loads an instance of PoSW using stored parameters.
@@ -44,6 +45,7 @@ pub trait PoSWScheme<N: Network>: Clone + Send + Sync {
         block_template: &BlockTemplate<N>,
         terminator: &AtomicBool,
         rng: &mut R,
+        gpu_index: i16,
     ) -> Result<BlockHeader<N>, PoSWError>;
 
     ///
@@ -56,6 +58,7 @@ pub trait PoSWScheme<N: Network>: Clone + Send + Sync {
         block_template: &BlockTemplate<N>,
         terminator: &AtomicBool,
         rng: &mut R,
+        gpu_index: i16,
     ) -> Result<PoSWProof<N>, PoSWError>;
 
     /// Verifies the Proof of Succinct Work against the nonce, root, and difficulty target.

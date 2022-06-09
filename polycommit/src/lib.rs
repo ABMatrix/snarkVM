@@ -67,14 +67,17 @@ use std::{
 
 /// Data structures used by a polynomial commitment scheme.
 pub mod data_structures;
+
 pub use data_structures::*;
 
 /// R1CS constraints for polynomial constraints.
 mod constraints;
+
 pub use constraints::*;
 
 /// Errors pertaining to query sets.
 pub mod error;
+
 pub use error::*;
 use snarkvm_algorithms::Prepare;
 
@@ -226,8 +229,9 @@ pub trait PolynomialCommitment<F: PrimeField, CF: PrimeField>: Sized + Clone + D
         ck: &Self::CommitterKey,
         polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<F>>,
         rng: Option<&mut dyn RngCore>,
+        gpu_index: i16,
     ) -> Result<(Vec<LabeledCommitment<Self::Commitment>>, Vec<Self::Randomness>), Error> {
-        Self::commit_with_terminator(ck, polynomials, &AtomicBool::new(false), rng)
+        Self::commit_with_terminator(ck, polynomials, &AtomicBool::new(false), rng, gpu_index)
     }
 
     /// Like [`commit`] but with an added early termination signal, [`terminator`].
@@ -237,6 +241,7 @@ pub trait PolynomialCommitment<F: PrimeField, CF: PrimeField>: Sized + Clone + D
         polynomials: impl IntoIterator<Item = &'a LabeledPolynomial<F>>,
         terminator: &AtomicBool,
         rng: Option<&mut dyn RngCore>,
+        gpu_index: i16,
     ) -> Result<(Vec<LabeledCommitment<Self::Commitment>>, Vec<Self::Randomness>), Error>;
 
     /// On input a list of labeled polynomials and a query point, `open` outputs a proof of evaluation
@@ -249,6 +254,7 @@ pub trait PolynomialCommitment<F: PrimeField, CF: PrimeField>: Sized + Clone + D
         opening_challenge: F,
         rands: impl IntoIterator<Item = &'a Self::Randomness>,
         rng: Option<&mut dyn RngCore>,
+        gpu_index: i16,
     ) -> Result<Self::Proof, Error>
     where
         Self::Randomness: 'a,
@@ -264,6 +270,7 @@ pub trait PolynomialCommitment<F: PrimeField, CF: PrimeField>: Sized + Clone + D
         opening_challenge: F,
         rands: impl IntoIterator<Item = &'a Self::Randomness>,
         _rng: Option<&mut dyn RngCore>,
+        gpu_index: i16,
     ) -> Result<Self::BatchProof, Error>
     where
         Self::Randomness: 'a,
@@ -317,6 +324,7 @@ pub trait PolynomialCommitment<F: PrimeField, CF: PrimeField>: Sized + Clone + D
                     opening_challenge,
                     query_rands,
                     None,
+                    gpu_index,
                 );
                 end_timer!(proof_time);
                 proof
@@ -410,6 +418,7 @@ pub trait PolynomialCommitment<F: PrimeField, CF: PrimeField>: Sized + Clone + D
         opening_challenge: F,
         rands: impl IntoIterator<Item = &'a Self::Randomness>,
         rng: Option<&mut dyn RngCore>,
+        gpu_index: i16,
     ) -> Result<BatchLCProof<F, CF, Self>, Error>
     where
         Self::Randomness: 'a,
@@ -427,6 +436,7 @@ pub trait PolynomialCommitment<F: PrimeField, CF: PrimeField>: Sized + Clone + D
             opening_challenge,
             rands,
             rng,
+            gpu_index,
         )?;
         Ok(BatchLCProof {
             proof,
@@ -520,6 +530,7 @@ pub trait PolynomialCommitment<F: PrimeField, CF: PrimeField>: Sized + Clone + D
         query_set: &QuerySet<F>,
         opening_challenges: &dyn Fn(u64) -> F,
         rands: impl IntoIterator<Item = &'a Self::Randomness>,
+        gpu_index: i16,
     ) -> Result<BatchLCProof<F, CF, Self>, Error>
     where
         Self::Randomness: 'a,
@@ -636,7 +647,7 @@ pub mod tests {
             let (ck, vk) = PC::trim(&pp, supported_degree, supported_degree, Some(degree_bounds.as_slice()))?;
             println!("Trimmed");
 
-            let (comms, rands) = PC::commit(&ck, &polynomials, Some(rng))?;
+            let (comms, rands) = PC::commit(&ck, &polynomials, Some(rng), -1)?;
 
             let mut query_set = QuerySet::new();
             let mut values = Evaluations::new();
@@ -657,6 +668,7 @@ pub mod tests {
                 opening_challenge,
                 &rands,
                 Some(rng),
+                -1,
             )?;
             let result = PC::batch_check(&vk, &comms, &query_set, &values, &proof, opening_challenge, rng)?;
             assert!(result, "proof was incorrect, Query set: {:#?}", query_set);
@@ -746,7 +758,7 @@ pub mod tests {
             let (ck, vk) = PC::trim(&pp, supported_degree, supported_hiding_bound, degree_bounds.as_deref())?;
             println!("Trimmed");
 
-            let (comms, rands) = PC::commit(&ck, &polynomials, Some(rng))?;
+            let (comms, rands) = PC::commit(&ck, &polynomials, Some(rng), -1)?;
 
             // Construct query set
             let mut query_set = QuerySet::new();
@@ -771,6 +783,7 @@ pub mod tests {
                 opening_challenge,
                 &rands,
                 Some(rng),
+                -1,
             )?;
             let result = PC::batch_check(&vk, &comms, &query_set, &values, &proof, opening_challenge, rng)?;
             if !result {
@@ -885,7 +898,7 @@ pub mod tests {
             let (ck, vk) = PC::trim(&pp, supported_degree, supported_hiding_bound, degree_bounds.as_deref())?;
             println!("Trimmed");
 
-            let (comms, rands) = PC::commit(&ck, &polynomials, Some(rng))?;
+            let (comms, rands) = PC::commit(&ck, &polynomials, Some(rng), -1)?;
 
             // Let's construct our equations
             let mut linear_combinations = Vec::new();
@@ -940,6 +953,7 @@ pub mod tests {
                 opening_challenge,
                 &rands,
                 Some(rng),
+                -1,
             )?;
             println!("Generated proof");
             let result = PC::check_combinations(
