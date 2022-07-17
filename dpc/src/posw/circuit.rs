@@ -29,8 +29,9 @@ use snarkvm_gadgets::{
 };
 use snarkvm_r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use snarkvm_algorithms::merkle_tree::MerkleTree;
+use snarkvm_utilities::ToBytes;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PoSWCircuit<N: Network> {
@@ -51,17 +52,21 @@ impl<N: Network> PoSWCircuit<N> {
         })
     }
 
-    pub fn new_abm(leaves: Vec<Vec<u8>>, nonce: N::PoSWNonce) -> Result<Self> {
+    pub fn new_abm(leaves: Vec<Vec<u8>>, nonce: N::PoSWNonce, tree_root_raw: Vec<u8>) -> Result<Self> {
         let tree = MerkleTree::<N::BlockHeaderRootParameters>::new(
             Arc::new(N::block_header_root_parameters().clone()),
             &leaves,
         )?;
 
-        Ok(Self {
-            block_header_root: (*tree.root()).into(),
-            nonce,
-            hashed_leaves: tree.hashed_leaves().to_vec(),
-        })
+        if tree.root().to_bytes_le() != tree_root_raw {
+            Err(anyhow!("tree root not equal with raw"))
+        }else {
+            Ok(Self {
+                block_header_root: (*tree.root()).into(),
+                nonce,
+                hashed_leaves: tree.hashed_leaves().to_vec(),
+            })
+        }
     }
 
     /// Creates a blank PoSW circuit for setup.
