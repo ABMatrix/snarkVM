@@ -172,19 +172,20 @@ impl<N: Network> BlockHeader<N> {
     pub fn mine_once_unchecked_abm<R: Rng + CryptoRng>(
         block_template_height: u32,
         leaves: Vec<Vec<u8>>,
+        tree_root_raw: Vec<u8>,
         terminator: &AtomicBool,
         rng: &mut R,
         gpu_index: i16,
     ) -> Result<(<N as Network>::PoSWNonce, PoSWProof<N>)> {
         // // Instantiate the circuit.
-        let mut circuit = PoSWCircuit::<N>::new_abm(leaves, UniformRand::rand(rng))?;
+        let mut circuit = PoSWCircuit::<N>::new_abm(leaves, UniformRand::rand(rng), tree_root_raw)?;
 
         // Run one iteration of PoSW.
         // Warning: this operation is unchecked.
         let proof = N::posw().prove_once_unchecked_abm(&mut circuit, block_template_height, terminator, rng, gpu_index)?;
 
         // Construct a block header.
-        Ok((circuit.nonce(),proof))
+        Ok((circuit.nonce(), proof))
 
         // ABM ↓↓↓↓↓↓↓↓↓↓↓↓↓
         // let num_leaves = usize::pow(2, N::HEADER_TREE_DEPTH as u32);
@@ -420,7 +421,7 @@ impl<'de, N: Network> Deserialize<'de> for BlockHeader<N> {
                     serde_json::from_value(header["nonce"].clone()).map_err(de::Error::custom)?,
                     serde_json::from_value(header["proof"].clone()).map_err(de::Error::custom)?,
                 )
-                .map_err(de::Error::custom)?)
+                    .map_err(de::Error::custom)?)
             }
             false => FromBytesDeserializer::<Self>::deserialize(deserializer, "block header", N::HEADER_SIZE_IN_BYTES),
         }

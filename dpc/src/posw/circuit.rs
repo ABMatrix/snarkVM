@@ -58,7 +58,7 @@ impl<N: Network> PoSWCircuit<N> {
             &leaves,
         )?;
 
-        if tree.root().to_bytes_le() != tree_root_raw {
+        if tree.root().to_bytes_le()? != tree_root_raw {
             Err(anyhow!("tree root not equal with raw"))
         }else {
             Ok(Self {
