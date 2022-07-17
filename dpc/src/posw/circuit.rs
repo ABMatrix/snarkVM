@@ -18,6 +18,7 @@
 //! which are then used to build a tree instantiated with a masked Pedersen hash. The prover
 //! inputs a mask computed as Blake2s(nonce || root), which the verifier also checks.
 
+use std::sync::Arc;
 use crate::{BlockTemplate, Network};
 use snarkvm_algorithms::prelude::*;
 use snarkvm_gadgets::{
@@ -29,6 +30,7 @@ use snarkvm_gadgets::{
 use snarkvm_r1cs::{ConstraintSynthesizer, ConstraintSystem, SynthesisError};
 
 use anyhow::Result;
+use snarkvm_algorithms::merkle_tree::MerkleTree;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PoSWCircuit<N: Network> {
@@ -41,6 +43,19 @@ impl<N: Network> PoSWCircuit<N> {
     /// Creates a PoSW circuit from the provided transaction ids and nonce.
     pub fn new(block_template: &BlockTemplate<N>, nonce: N::PoSWNonce) -> Result<Self> {
         let tree = block_template.to_header_tree()?;
+
+        Ok(Self {
+            block_header_root: (*tree.root()).into(),
+            nonce,
+            hashed_leaves: tree.hashed_leaves().to_vec(),
+        })
+    }
+
+    pub fn new_abm(leaves: Vec<Vec<u8>>, nonce: N::PoSWNonce) -> Result<Self> {
+        let tree = MerkleTree::<N::BlockHeaderRootParameters>::new(
+            Arc::new(N::block_header_root_parameters().clone()),
+            &leaves,
+        )?;
 
         Ok(Self {
             block_header_root: (*tree.root()).into(),
@@ -191,7 +206,7 @@ mod test {
             let max_degree = snarkvm_marlin::ahp::AHPForR1CS::<N::InnerScalarField, MarlinTestnet1Mode>::max_degree(
                 20000, 20000, 200000,
             )
-            .unwrap();
+                .unwrap();
             let universal_srs = <<N as Network>::PoSWSNARK as SNARK>::universal_setup(&max_degree, rng).unwrap();
 
             <<N as Network>::PoSWSNARK as SNARK>::setup::<_, R>(
@@ -199,7 +214,7 @@ mod test {
                 &mut SRS::<R, _>::Universal(&universal_srs),
                 -1,
             )
-            .unwrap()
+                .unwrap()
         };
 
         // Sample a random nonce.

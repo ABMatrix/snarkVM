@@ -61,6 +61,16 @@ pub trait PoSWScheme<N: Network>: Clone + Send + Sync {
         gpu_index: i16,
     ) -> Result<PoSWProof<N>, PoSWError>;
 
+    fn prove_once_unchecked_abm<R: Rng + CryptoRng>(
+        &self,
+        circuit: &mut PoSWCircuit<N>,
+        block_template_height: u32,
+        terminator: &AtomicBool,
+        rng: &mut R,
+        gpu_index: i16,
+    ) -> Result<PoSWProof<N>, PoSWError>;
+
+
     /// Verifies the Proof of Succinct Work against the nonce, root, and difficulty target.
     fn verify_from_block_header(&self, block_header: &BlockHeader<N>) -> bool;
 

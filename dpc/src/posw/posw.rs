@@ -176,6 +176,40 @@ impl<N: Network> PoSWScheme<N> for PoSW<N> {
         }
     }
 
+    fn prove_once_unchecked_abm<R: Rng + CryptoRng>(
+        &self,
+        circuit: &mut PoSWCircuit<N>,
+        block_template_height: u32,
+        terminator: &AtomicBool,
+        rng: &mut R,
+        gpu_index: i16,
+    ) -> Result<PoSWProof<N>, PoSWError> {
+        let pk = self.proving_key.as_ref().expect("tried to mine without a PK set up");
+
+        // Sample a random nonce.
+        circuit.set_nonce(UniformRand::rand(rng));
+
+        // TODO (raychu86): TEMPORARY - Remove this after testnet2 period.
+        // Mine blocks with the deprecated PoSW mode for blocks behind `V12_UPGRADE_BLOCK_HEIGHT`.
+        if <N as Network>::NETWORK_ID == 2 && block_template_height <= crate::testnet2::V12_UPGRADE_BLOCK_HEIGHT
+        {
+            let pk = <crate::testnet2::DeprecatedPoSWSNARK<N> as SNARK>::ProvingKey::from_bytes_le(&pk.to_bytes_le()?)?;
+            // Construct a PoSW proof.
+            Ok(PoSWProof::<N>::new_hiding(
+                <crate::testnet2::DeprecatedPoSWSNARK<N> as SNARK>::prove_with_terminator(
+                    &pk, circuit, terminator, rng, gpu_index,
+                )?
+                    .into(),
+            ))
+        } else {
+            // Construct a PoSW proof.
+            Ok(PoSWProof::<N>::new(
+                <<N as Network>::PoSWSNARK as SNARK>::prove_with_terminator(pk, circuit, terminator, rng, gpu_index)?
+                    .into(),
+            ))
+        }
+    }
+
     /// Verifies the Proof of Succinct Work against the nonce, root, and difficulty target.
     fn verify_from_block_header(&self, block_header: &BlockHeader<N>) -> bool {
         self.verify(

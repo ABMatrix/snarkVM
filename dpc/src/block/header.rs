@@ -31,6 +31,7 @@ use anyhow::{anyhow, Result};
 use rand::{CryptoRng, Rng};
 use serde::{de, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 use std::{mem::size_of, sync::atomic::AtomicBool};
+use std::sync::Arc;
 
 /// Block header metadata.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -167,6 +168,41 @@ impl<N: Network> BlockHeader<N> {
             proof,
         })
     }
+
+    pub fn mine_once_unchecked_abm<R: Rng + CryptoRng>(
+        block_template_height: u32,
+        leaves: Vec<Vec<u8>>,
+        terminator: &AtomicBool,
+        rng: &mut R,
+        gpu_index: i16,
+    ) -> Result<(<N as Network>::PoSWNonce, PoSWProof<N>)> {
+        // // Instantiate the circuit.
+        let mut circuit = PoSWCircuit::<N>::new_abm(leaves, UniformRand::rand(rng))?;
+
+        // Run one iteration of PoSW.
+        // Warning: this operation is unchecked.
+        let proof = N::posw().prove_once_unchecked_abm(&mut circuit, block_template_height, terminator, rng, gpu_index)?;
+
+        // Construct a block header.
+        Ok((circuit.nonce(),proof))
+
+        // ABM ↓↓↓↓↓↓↓↓↓↓↓↓↓
+        // let num_leaves = usize::pow(2, N::HEADER_TREE_DEPTH as u32);
+        // let mut leaves: Vec<Vec<u8>> = Vec::with_capacity(num_leaves);
+        // leaves.push(leaves_source[0].clone());
+        // leaves.push(leaves_source[1].clone());
+        // leaves.push(leaves_source[2].clone());
+        // leaves.push(leaves_source[3].clone());
+        // // Sanity check that the correct number of leaves are allocated.
+        // assert_eq!(num_leaves, leaves.len());
+    }
+
+    ///
+    /// Mines a new unchecked instance of a block header and just return circuit and proof.
+    /// WARNING - This method does *not* enforce the block header is valid.
+    /// WARNING - This method only used in pool miner
+    ///
+
 
     /// Returns `true` if the block header is well-formed.
     pub fn is_valid(&self) -> bool {
