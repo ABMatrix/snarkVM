@@ -31,6 +31,7 @@ use anyhow::{anyhow, Result};
 use rand::{CryptoRng, Rng};
 use serde::{de, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 use std::{mem::size_of, sync::atomic::AtomicBool};
+use snarkvm_algorithms::{CRH, MerkleParameters};
 
 /// Block header metadata.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -171,14 +172,14 @@ impl<N: Network> BlockHeader<N> {
     // ABM ↓↓↓↓↓↓↓↓↓↓↓↓↓
     pub fn mine_once_unchecked_abm<R: Rng + CryptoRng>(
         block_template_height: u32,
-        leaves: Vec<Vec<u8>>,
-        tree_root_raw: Vec<u8>,
+        block_header_root: N::BlockHeaderRoot,
+        hashed_leaves: Vec<<<N::BlockHeaderRootParameters as MerkleParameters>::H as CRH>::Output>,
         terminator: &AtomicBool,
         rng: &mut R,
         gpu_index: i16,
     ) -> Result<(<N as Network>::PoSWNonce, PoSWProof<N>)> {
         // // Instantiate the circuit.
-        let mut circuit = PoSWCircuit::<N>::new_abm(leaves, UniformRand::rand(rng), tree_root_raw)?;
+        let mut circuit = PoSWCircuit::<N>::new_abm(block_header_root, UniformRand::rand(rng), hashed_leaves)?;
 
         // Run one iteration of PoSW.
         // Warning: this operation is unchecked.
