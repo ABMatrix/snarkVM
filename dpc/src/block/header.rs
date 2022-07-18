@@ -168,6 +168,7 @@ impl<N: Network> BlockHeader<N> {
         })
     }
 
+    // ABM ↓↓↓↓↓↓↓↓↓↓↓↓↓
     pub fn mine_once_unchecked_abm<R: Rng + CryptoRng>(
         block_template_height: u32,
         leaves: Vec<Vec<u8>>,
@@ -185,16 +186,6 @@ impl<N: Network> BlockHeader<N> {
 
         // Construct a block header.
         Ok((circuit.nonce(), proof))
-
-        // ABM ↓↓↓↓↓↓↓↓↓↓↓↓↓
-        // let num_leaves = usize::pow(2, N::HEADER_TREE_DEPTH as u32);
-        // let mut leaves: Vec<Vec<u8>> = Vec::with_capacity(num_leaves);
-        // leaves.push(leaves_source[0].clone());
-        // leaves.push(leaves_source[1].clone());
-        // leaves.push(leaves_source[2].clone());
-        // leaves.push(leaves_source[3].clone());
-        // // Sanity check that the correct number of leaves are allocated.
-        // assert_eq!(num_leaves, leaves.len());
     }
 
     ///

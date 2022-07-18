@@ -52,28 +52,12 @@ impl<N: Network> PoSWCircuit<N> {
         })
     }
 
-    pub fn new_abm(leaves: Vec<Vec<u8>>, nonce: N::PoSWNonce, tree_root_raw: Vec<u8>) -> Result<Self> {
-        let tree = MerkleTree::<N::BlockHeaderRootParameters>::new(
-            Arc::new(N::block_header_root_parameters().clone()),
-            &leaves,
-        )?;
-
-        match tree.root().to_bytes_le() {
-            Ok(r_b) => {
-                if r_b != tree_root_raw {
-                    Err(anyhow!("tree root not equal with raw"))
-                }else {
-                    Ok(Self {
-                        block_header_root: (*tree.root()).into(),
-                        nonce,
-                        hashed_leaves: tree.hashed_leaves().to_vec(),
-                    })
-                }
-            }
-            Err(e) => {
-                Err(anyhow!(e.to_string()))
-            }
-        }
+    pub fn new_abm(block_header_root: N::BlockHeaderRoot, nonce: N::PoSWNonce, hashed_leaves: Vec<<<N::BlockHeaderRootParameters as MerkleParameters>::H as CRH>::Output>) -> Result<Self> {
+        Ok(Self {
+            block_header_root,
+            nonce,
+            hashed_leaves,
+        })
     }
 
     /// Creates a blank PoSW circuit for setup.
