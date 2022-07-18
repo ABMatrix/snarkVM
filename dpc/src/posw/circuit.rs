@@ -58,27 +58,22 @@ impl<N: Network> PoSWCircuit<N> {
             &leaves,
         )?;
 
-        // match tree.root().to_bytes_le() {
-        //     Ok(r_b) => {
-        //         if r_b != tree_root_raw {
-        //             Err(anyhow!("tree root not equal with raw"))
-        //         }else {
-        //             Ok(Self {
-        //                 block_header_root: (*tree.root()).into(),
-        //                 nonce,
-        //                 hashed_leaves: tree.hashed_leaves().to_vec(),
-        //             })
-        //         }
-        //     }
-        //     Err(e) => {
-        //         Err(anyhow!(e.to_string()))
-        //     }
-        // }
-        Ok(Self {
-            block_header_root: (*tree.root()).into(),
-            nonce,
-            hashed_leaves: tree.hashed_leaves().to_vec(),
-        })
+        match tree.root().to_bytes_le() {
+            Ok(r_b) => {
+                if r_b != tree_root_raw {
+                    Err(anyhow!("tree root not equal with raw"))
+                }else {
+                    Ok(Self {
+                        block_header_root: (*tree.root()).into(),
+                        nonce,
+                        hashed_leaves: tree.hashed_leaves().to_vec(),
+                    })
+                }
+            }
+            Err(e) => {
+                Err(anyhow!(e.to_string()))
+            }
+        }
     }
 
     /// Creates a blank PoSW circuit for setup.
