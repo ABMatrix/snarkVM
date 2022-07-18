@@ -32,7 +32,6 @@ use rand::{CryptoRng, Rng};
 use serde::{de, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
 use std::{mem::size_of, sync::atomic::AtomicBool};
 use std::sync::Arc;
-use crate::testnet2::Testnet2;
 
 /// Block header metadata.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -177,13 +176,13 @@ impl<N: Network> BlockHeader<N> {
         terminator: &AtomicBool,
         rng: &mut R,
         gpu_index: i16,
-    ) -> Result<(<Testnet2 as Network>::PoSWNonce, PoSWProof<Testnet2>)> {
+    ) -> Result<(<N as Network>::PoSWNonce, PoSWProof<N>)> {
         // // Instantiate the circuit.
-        let mut circuit = PoSWCircuit::<Testnet2>::new_abm(leaves, UniformRand::rand(rng), tree_root_raw)?;
+        let mut circuit = PoSWCircuit::<N>::new_abm(leaves, UniformRand::rand(rng), tree_root_raw)?;
 
         // Run one iteration of PoSW.
         // Warning: this operation is unchecked.
-        let proof = Testnet2::posw().prove_once_unchecked_abm(&mut circuit, block_template_height, terminator, rng, gpu_index)?;
+        let proof = N::posw().prove_once_unchecked_abm(&mut circuit, block_template_height, terminator, rng, gpu_index)?;
 
         // Construct a block header.
         Ok((circuit.nonce(), proof))
