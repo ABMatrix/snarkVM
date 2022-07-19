@@ -30,8 +30,8 @@ use snarkvm_utilities::{
 use anyhow::{anyhow, Result};
 use rand::{CryptoRng, Rng};
 use serde::{de, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
+use snarkvm_algorithms::{MerkleParameters, CRH};
 use std::{mem::size_of, sync::atomic::AtomicBool};
-use snarkvm_algorithms::{CRH, MerkleParameters};
 
 /// Block header metadata.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -57,6 +57,15 @@ impl BlockHeaderMetadata {
                 difficulty_target: template.difficulty_target(),
                 cumulative_weight: template.cumulative_weight(),
             },
+        }
+    }
+
+    pub fn new_abm<N: Network>(height: u32, timestamp: i64, difficulty_target: u64, cumulative_weight: u128) -> Self {
+        Self {
+            height,
+            timestamp,
+            difficulty_target,
+            cumulative_weight,
         }
     }
 
@@ -183,7 +192,8 @@ impl<N: Network> BlockHeader<N> {
 
         // Run one iteration of PoSW.
         // Warning: this operation is unchecked.
-        let proof = N::posw().prove_once_unchecked_abm(&mut circuit, block_template_height, terminator, rng, gpu_index)?;
+        let proof =
+            N::posw().prove_once_unchecked_abm(&mut circuit, block_template_height, terminator, rng, gpu_index)?;
 
         // Construct a block header.
         Ok((circuit.nonce(), proof))
@@ -194,7 +204,6 @@ impl<N: Network> BlockHeader<N> {
     /// WARNING - This method does *not* enforce the block header is valid.
     /// WARNING - This method only used in pool miner
     ///
-
 
     /// Returns `true` if the block header is well-formed.
     pub fn is_valid(&self) -> bool {
@@ -412,7 +421,7 @@ impl<'de, N: Network> Deserialize<'de> for BlockHeader<N> {
                     serde_json::from_value(header["nonce"].clone()).map_err(de::Error::custom)?,
                     serde_json::from_value(header["proof"].clone()).map_err(de::Error::custom)?,
                 )
-                    .map_err(de::Error::custom)?)
+                .map_err(de::Error::custom)?)
             }
             false => FromBytesDeserializer::<Self>::deserialize(deserializer, "block header", N::HEADER_SIZE_IN_BYTES),
         }

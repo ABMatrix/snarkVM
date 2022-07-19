@@ -191,15 +191,14 @@ impl<N: Network> PoSWScheme<N> for PoSW<N> {
 
         // TODO (raychu86): TEMPORARY - Remove this after testnet2 period.
         // Mine blocks with the deprecated PoSW mode for blocks behind `V12_UPGRADE_BLOCK_HEIGHT`.
-        if <N as Network>::NETWORK_ID == 2 && block_template_height <= crate::testnet2::V12_UPGRADE_BLOCK_HEIGHT
-        {
+        if <N as Network>::NETWORK_ID == 2 && block_template_height <= crate::testnet2::V12_UPGRADE_BLOCK_HEIGHT {
             let pk = <crate::testnet2::DeprecatedPoSWSNARK<N> as SNARK>::ProvingKey::from_bytes_le(&pk.to_bytes_le()?)?;
             // Construct a PoSW proof.
             Ok(PoSWProof::<N>::new_hiding(
                 <crate::testnet2::DeprecatedPoSWSNARK<N> as SNARK>::prove_with_terminator(
                     &pk, circuit, terminator, rng, gpu_index,
                 )?
-                    .into(),
+                .into(),
             ))
         } else {
             // Construct a PoSW proof.
