@@ -37,8 +37,9 @@ use std::env;
 #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
 static HAS_CUDA_FAILED: AtomicBool = AtomicBool::new(false);
 
-#[cfg(all(feature = "cuda", target_arch = "x86_64"))]
 pub static USING_CUDA: &str = "ALEO_CUDA";
+pub static GPU_LIST_ENV: &str = "ALEO_GPU_LIST";
+pub static GPU_JOBS_ENV: &str = "ALEO_GPU_JOBS";
 
 pub struct VariableBase;
 
