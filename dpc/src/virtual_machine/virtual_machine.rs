@@ -157,23 +157,23 @@ impl<N: Network> VirtualMachine<N> {
     }
 
     /// Finalizes the virtual machine state and returns a transaction.
-    pub fn finalize<R: Rng + CryptoRng>(&self, _rng: &mut R) -> Result<Transaction<N>> {
-        // let input_proof = (!self.input_circuits.is_empty())
-        //     .then(|| N::InputSNARK::prove_batch(N::input_proving_key(), &self.input_circuits, rng))
-        //     .transpose()?
-        //     .map(Into::into);
-        // let output_proof = (!self.output_circuits.is_empty())
-        //     .then(|| N::OutputSNARK::prove_batch(N::output_proving_key(), &self.output_circuits, rng))
-        //     .transpose()?
-        //     .map(Into::into);
-        // let kernel_proof = KernelProof::<N> { input_proof, output_proof };
+    pub fn finalize<R: Rng + CryptoRng>(&self, rng: &mut R) -> Result<Transaction<N>> {
+        let input_proof = (!self.input_circuits.is_empty())
+            .then(|| N::InputSNARK::prove_batch(N::input_proving_key(), &self.input_circuits, rng))
+            .transpose()?
+            .map(Into::into);
+        let output_proof = (!self.output_circuits.is_empty())
+            .then(|| N::OutputSNARK::prove_batch(N::output_proving_key(), &self.output_circuits, rng))
+            .transpose()?
+            .map(Into::into);
+        let kernel_proof = KernelProof::<N> { input_proof, output_proof };
 
         Transaction::from(
             *N::input_circuit_id(),
             *N::output_circuit_id(),
             self.ledger_root,
             self.transitions.clone(),
-            // kernel_proof,
+            kernel_proof,
         )
     }
 
