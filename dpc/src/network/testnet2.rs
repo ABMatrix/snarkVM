@@ -72,6 +72,13 @@ use blake2::Blake2s256;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 
+// TODO (raychu86): TEMPORARY - Remove this after testnet2 period.
+#[cfg(test)]
+pub const V12_UPGRADE_BLOCK_HEIGHT: u32 = 1_u32;
+#[cfg(not(test))]
+pub const V12_UPGRADE_BLOCK_HEIGHT: u32 = 100_000_u32;
+
+
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Testnet2;
 

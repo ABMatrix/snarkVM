@@ -32,7 +32,13 @@ use core::any::TypeId;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
+use std::env;
+
+#[cfg(all(feature = "cuda", target_arch = "x86_64"))]
 static HAS_CUDA_FAILED: AtomicBool = AtomicBool::new(false);
+
+#[cfg(all(feature = "cuda", target_arch = "x86_64"))]
+pub static USING_CUDA: &str = "ALEO_CUDA";
 
 pub struct VariableBase;
 
@@ -41,15 +47,27 @@ impl VariableBase {
         // For BLS12-377, we perform variable base MSM using a batched addition technique.
         if TypeId::of::<G>() == TypeId::of::<G1Affine>() {
             #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
-            if !HAS_CUDA_FAILED.load(Ordering::SeqCst) {
-                match cuda::msm_cuda(bases, scalars) {
-                    Ok(x) => return x,
-                    Err(_e) => {
-                        HAS_CUDA_FAILED.store(true, Ordering::SeqCst);
-                        eprintln!("CUDA failed, moving to the next MSM method");
+            // if !HAS_CUDA_FAILED.load(Ordering::SeqCst) {
+            //     match cuda::msm_cuda(bases, scalars) {
+            //         Ok(x) => return x,
+            //         Err(_e) => {
+            //             HAS_CUDA_FAILED.store(true, Ordering::SeqCst);
+            //             eprintln!("CUDA failed, moving to the next MSM method");
+            //         }
+            //     }
+            // }
+            if env::var(USING_CUDA).is_ok() {
+                if !HAS_CUDA_FAILED.load(Ordering::SeqCst) {
+                    match cuda::msm_cuda(bases, scalars) {
+                        Ok(x) => return x,
+                        Err(_e) => {
+                            HAS_CUDA_FAILED.store(true, Ordering::SeqCst);
+                            eprintln!("CUDA failed, moving to the next MSM method");
+                        }
                     }
                 }
             }
+
             batched::msm(bases, scalars)
         }
         // For all other curves, we perform variable base MSM using Pippenger's algorithm.

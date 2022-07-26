@@ -19,7 +19,7 @@ use crate::{
     Address,
     AleoAmount,
     Event,
-    KernelProof,
+    // KernelProof,
     LedgerTree,
     LedgerTreeScheme,
     LocalProof,
@@ -61,8 +61,8 @@ pub struct Transaction<N: Network> {
     ledger_root: N::LedgerRoot,
     /// The state transition.
     transitions: Vec<Transition<N>>,
-    /// Input and output proofs for all the transitions.
-    kernel_proof: KernelProof<N>,
+    // Input and output proofs for all the transitions.
+    // kernel_proof: KernelProof<N>,
 }
 
 impl<N: Network> Transaction<N> {
@@ -93,12 +93,19 @@ impl<N: Network> Transaction<N> {
         output_circuit_id: N::OutputCircuitID,
         ledger_root: N::LedgerRoot,
         transitions: Vec<Transition<N>>,
-        kernel_proof: KernelProof<N>,
+        // kernel_proof: KernelProof<N>,
     ) -> Result<Self> {
         let transaction_id = Self::compute_transaction_id(&transitions)?;
 
         let transaction =
-            Self { transaction_id, input_circuit_id, output_circuit_id, ledger_root, transitions, kernel_proof };
+            Self {
+                transaction_id,
+                input_circuit_id,
+                output_circuit_id,
+                ledger_root,
+                transitions,
+                // kernel_proof
+            };
 
         match transaction.is_valid() {
             true => Ok(transaction),
@@ -204,26 +211,26 @@ impl<N: Network> Transaction<N> {
             return false;
         }
 
-        let input_public_variables: Vec<_> = self
-            .transitions
-            .iter()
-            .flat_map(|t| t.input_public_variables(self.ledger_root, transitions.root()))
-            .collect();
-
-        let output_public_variables: Vec<_> =
-            self.transitions.iter().flat_map(|t| t.output_public_variables()).collect();
-
-        match self.kernel_proof.verify(&input_public_variables, &output_public_variables) {
-            Ok(false) => {
-                eprintln!("Transaction contains an invalid kernel proof");
-                return false;
-            }
-            Err(error) => {
-                eprintln!("Transaction failed to verify kernel proof: {}", error);
-                return false;
-            }
-            _ => {}
-        }
+        // let input_public_variables: Vec<_> = self
+        //     .transitions
+        //     .iter()
+        //     .flat_map(|t| t.input_public_variables(self.ledger_root, transitions.root()))
+        //     .collect();
+        //
+        // let output_public_variables: Vec<_> =
+        //     self.transitions.iter().flat_map(|t| t.output_public_variables()).collect();
+        //
+        // match self.kernel_proof.verify(&input_public_variables, &output_public_variables) {
+        //     Ok(false) => {
+        //         eprintln!("Transaction contains an invalid kernel proof");
+        //         return false;
+        //     }
+        //     Err(error) => {
+        //         eprintln!("Transaction failed to verify kernel proof: {}", error);
+        //         return false;
+        //     }
+        //     _ => {}
+        // }
 
         true
     }
@@ -374,9 +381,15 @@ impl<N: Network> FromBytes for Transaction<N> {
         for _ in 0..num_transitions {
             transitions.push(FromBytes::read_le(&mut reader)?);
         }
-        let kernel_proof = FromBytes::read_le(&mut reader)?;
+        // let kernel_proof = FromBytes::read_le(&mut reader)?;
 
-        Self::from(input_circuit_id, output_circuit_id, ledger_root, transitions, kernel_proof)
+        Self::from(
+            input_circuit_id,
+            output_circuit_id,
+            ledger_root,
+            transitions,
+            // kernel_proof
+        )
             .map_err(|e| error(format!("Failed to deserialize a transaction: {e}")))
     }
 }
@@ -394,8 +407,8 @@ impl<N: Network> ToBytes for Transaction<N> {
         }
 
         (self.transitions.len() as u16).write_le(&mut writer)?;
-        self.transitions.write_le(&mut writer)?;
-        self.kernel_proof.write_le(&mut writer)
+        self.transitions.write_le(&mut writer)
+        // self.kernel_proof.write_le(&mut writer)
     }
 }
 
@@ -423,7 +436,7 @@ impl<N: Network> Serialize for Transaction<N> {
                 transaction.serialize_field("output_circuit_id", &self.output_circuit_id)?;
                 transaction.serialize_field("ledger_root", &self.ledger_root)?;
                 transaction.serialize_field("transitions", &self.transitions)?;
-                transaction.serialize_field("kernel_proof", &self.kernel_proof)?;
+                // transaction.serialize_field("kernel_proof", &self.kernel_proof)?;
                 transaction.end()
             }
             false => ToBytesSerializer::serialize_with_size_encoding(self, serializer),
@@ -446,7 +459,7 @@ impl<'de, N: Network> Deserialize<'de> for Transaction<N> {
                     serde_json::from_value(transaction["output_circuit_id"].clone()).map_err(Error::custom)?,
                     serde_json::from_value(transaction["ledger_root"].clone()).map_err(Error::custom)?,
                     serde_json::from_value(transaction["transitions"].clone()).map_err(Error::custom)?,
-                    serde_json::from_value(transaction["kernel_proof"].clone()).map_err(Error::custom)?,
+                    // serde_json::from_value(transaction["kernel_proof"].clone()).map_err(Error::custom)?,
                 )
                 .map_err(Error::custom)?;
 

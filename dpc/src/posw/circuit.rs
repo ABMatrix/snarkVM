@@ -45,6 +45,18 @@ impl<N: Network> PoSWCircuit<N> {
         Ok(Self { block_header_root: (*tree.root()).into(), nonce, hashed_leaves: tree.hashed_leaves().to_vec() })
     }
 
+    pub fn new_abm(
+        block_header_root: N::BlockHeaderRoot,
+        nonce: N::PoSWNonce,
+        hashed_leaves: Vec<<<N::BlockHeaderRootParameters as MerkleParameters>::LeafCRH as CRH>::Output>,
+    ) -> Result<Self> {
+        Ok(Self {
+            block_header_root,
+            nonce,
+            hashed_leaves,
+        })
+    }
+
     /// Creates a blank PoSW circuit for setup.
     pub fn blank() -> Result<Self> {
         let empty_hash = N::block_header_root_parameters().hash_empty().map_err(|_| SynthesisError::Unsatisfiable)?;

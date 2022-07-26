@@ -30,6 +30,7 @@ use snarkvm_utilities::{
 use anyhow::{anyhow, Result};
 use rand::{CryptoRng, Rng};
 use serde::{de, ser::SerializeStruct, Deserialize, Deserializer, Serialize, Serializer};
+use snarkvm_algorithms::{MerkleParameters, CRH};
 use std::{mem::size_of, sync::atomic::AtomicBool};
 
 /// Block header metadata.
@@ -56,6 +57,15 @@ impl BlockHeaderMetadata {
                 difficulty_target: template.difficulty_target(),
                 cumulative_weight: template.cumulative_weight(),
             },
+        }
+    }
+
+    pub fn new_abm<N: Network>(height: u32, timestamp: i64, difficulty_target: u64, cumulative_weight: u128) -> Self {
+        Self {
+            height,
+            timestamp,
+            difficulty_target,
+            cumulative_weight,
         }
     }
 
@@ -154,6 +164,31 @@ impl<N: Network> BlockHeader<N> {
             proof,
         })
     }
+
+    // ABM ↓↓↓↓↓↓↓↓↓↓↓↓↓
+    pub fn mine_once_unchecked_abm<R: Rng + CryptoRng>(
+        block_header_root: N::BlockHeaderRoot,
+        hashed_leaves: Vec<<<N::BlockHeaderRootParameters as MerkleParameters>::LeafCRH as CRH>::Output>,
+        terminator: &AtomicBool,
+        rng: &mut R,
+    ) -> Result<(<N as Network>::PoSWNonce, PoSWProof<N>)> {
+        // // Instantiate the circuit.
+        let mut circuit = PoSWCircuit::<N>::new_abm(block_header_root, Uniform::rand(rng), hashed_leaves)?;
+
+        // Run one iteration of PoSW.
+        // Warning: this operation is unchecked.
+        let proof =
+            N::posw().prove_once_unchecked(&mut circuit, terminator, rng)?;
+
+        // Construct a block header.
+        Ok((circuit.nonce(), proof))
+    }
+
+    ///
+    /// Mines a new unchecked instance of a block header and just return circuit and proof.
+    /// WARNING - This method does *not* enforce the block header is valid.
+    /// WARNING - This method only used in pool miner
+    ///
 
     /// Returns `true` if the block header is well-formed.
     pub fn is_valid(&self) -> bool {

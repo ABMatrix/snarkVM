@@ -32,8 +32,8 @@ pub(crate) use local_proof::*;
 pub mod memory_pool;
 pub use memory_pool::*;
 
-pub(crate) mod record_proof;
-pub(crate) use record_proof::*;
+pub mod record_proof;
+pub use record_proof::*;
 
 pub(crate) mod transitions;
 pub(crate) use transitions::*;
