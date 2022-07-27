@@ -26,6 +26,7 @@ use rust_gpu_tools::{cuda, program_closures, Device, GPUError, Program};
 use std::{any::TypeId, env, path::Path, process::Command};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::RwLock;
+use std::str::FromStr;
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -316,11 +317,13 @@ pub fn initialize_cuda_request_dispatcher() -> Result<(), GPUError> {
             return Ok(());
         }
 
-        let gpus = env::var(GPU_LIST_ENV)?
+        let gpus = env::var(GPU_LIST_ENV)
+            .map_err(|e| GPUError::Generic(e.to_string()))?
             .split(':')
             .map(|gpu_idx| u16::from_str(gpu_idx)?)
             .collect::<Vec<u16>>();
-        let gpu_jobs = env::var(GPU_JOBS_ENV)?
+        let gpu_jobs = env::var(GPU_JOBS_ENV)
+            .map_err(|e| GPUError::Generic(e.to_string()))?
             .split(':')
             .map(|j| u8::from_str(j)?)
             .collect::<Vec<u8>>();
@@ -332,7 +335,7 @@ pub fn initialize_cuda_request_dispatcher() -> Result<(), GPUError> {
 
 
         for (i, gpu_idx) in gpus.iter().enumerate() {
-            if let Some(device) = devices.get(gpu_idx as usize) {
+            if let Some(device) = devices.get(*gpu_idx as usize) {
                 for _ in 0..gpu_jobs[i] {
                     let (sender, receiver) = crossbeam_channel::bounded(4096);
                     std::thread::spawn(move || initialize_cuda_request_handler(receiver, device));
@@ -348,7 +351,7 @@ pub fn initialize_cuda_request_dispatcher() -> Result<(), GPUError> {
 
 
 lazy_static::lazy_static! {
-    static ref CUDA_DISPATCH_NEW: RwLock<Vec<(crossbeam_channel::Sender<CudaRequest>, AtomicBool)>> = RwLock::new(Vec::new())
+    static ref CUDA_DISPATCH_NEW: RwLock<Vec<(crossbeam_channel::Sender<CudaRequest>, AtomicBool)>> = RwLock::new(Vec::new());
 }
 
 lazy_static::lazy_static! {
@@ -394,10 +397,10 @@ pub(super) fn msm_cuda<G: AffineCurve>(
 
     match receiver.recv() {
         Ok(x) => {
+            free_dispatcher(idx)?;
             unsafe {
                 std::mem::transmute_copy(&x)?;
             }
-            free_dispatcher(idx)
         }
         Err(_) => {
             free_dispatcher(idx)?;
