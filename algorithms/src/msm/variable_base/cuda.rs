@@ -317,13 +317,16 @@ pub fn initialize_cuda_request_dispatcher() -> Result<(), GPUError> {
             return Ok(());
         }
 
-        let gpus = env::var(GPU_LIST_ENV)
-            .map_err(|e| GPUError::Generic(e.to_string()))?
+        let gpus_env = env::var(GPU_LIST_ENV).map_err(|e| GPUError::Generic(e.to_string()))?;
+        let gpus_env = gpus_env.strip_suffix(':').unwrap();
+        let gpus = gpus_env
             .split(':')
             .map(|gpu_idx| u16::from_str(gpu_idx).unwrap())
             .collect::<Vec<u16>>();
-        let gpu_jobs = env::var(GPU_JOBS_ENV)
-            .map_err(|e| GPUError::Generic(e.to_string()))?
+
+        let gpu_jobs_env = env::var(GPU_JOBS_ENV).map_err(|e| GPUError::Generic(e.to_string()))?;
+        let gpu_jobs_env = gpu_jobs_env.strip_suffix(':').unwrap();
+        let gpu_jobs = gpu_jobs_env
             .split(':')
             .map(|j| u8::from_str(j).unwrap())
             .collect::<Vec<u8>>();
