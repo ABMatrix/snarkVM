@@ -310,7 +310,7 @@ fn initialize_cuda_request_handler(input: crossbeam_channel::Receiver<CudaReques
     }
 }
 
-pub fn initialize_cuda_request_dispatcher() -> Result<()> {
+pub fn initialize_cuda_request_dispatcher() -> Result<(), GPUError> {
     if let Ok(mut dispatchers) = CUDA_DISPATCH_NEW.write() {
         if dispatchers.len() > 0 {
             return Ok(());
@@ -332,14 +332,14 @@ pub fn initialize_cuda_request_dispatcher() -> Result<()> {
 
 
         for (i, gpu_idx) in gpus.iter().enumerate() {
-            if devices.get(gpu_idx as usize).is_none() {
+            if let Some(device) = devices.get(gpu_idx as usize) {
+                for _ in 0..gpu_jobs[i] {
+                    let (sender, receiver) = crossbeam_channel::bounded(4096);
+                    std::thread::spawn(move || initialize_cuda_request_handler(receiver, device));
+                    dispatchers.push(sender, AtomicBool::new(true))
+                }
+            } else {
                 return Err(GPUError::Generic(format!("GPU device's index {} not found", gpu_idx)));
-            }
-
-            for _ in 0..gpu_jobs[i] {
-                let (sender, receiver) = crossbeam_channel::bounded(4096);
-                std::thread::spawn(move || initialize_cuda_request_handler(receiver, device));
-                dispatchers.push(sender, AtomicBool::new(true))
             }
         }
     }
@@ -398,7 +398,7 @@ pub(super) fn msm_cuda<G: AffineCurve>(
                 std::mem::transmute_copy(&x)?;
             }
             free_dispatcher(idx)
-        },
+        }
         Err(_) => {
             free_dispatcher(idx)?;
             Err(GPUError::DeviceNotFound)
