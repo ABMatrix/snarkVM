@@ -33,6 +33,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
 use std::env;
+#[cfg(all(feature = "cuda", target_arch = "x86_64"))]
 use rust_gpu_tools::GPUError;
 
 #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
