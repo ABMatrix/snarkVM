@@ -320,12 +320,12 @@ pub fn initialize_cuda_request_dispatcher() -> Result<(), GPUError> {
         let gpus = env::var(GPU_LIST_ENV)
             .map_err(|e| GPUError::Generic(e.to_string()))?
             .split(':')
-            .map(|gpu_idx| u16::from_str(gpu_idx).map_err(|e| GPUError::Generic(e.to_string()))?)
+            .map(|gpu_idx| u16::from_str(gpu_idx).unwrap())
             .collect::<Vec<u16>>();
         let gpu_jobs = env::var(GPU_JOBS_ENV)
             .map_err(|e| GPUError::Generic(e.to_string()))?
             .split(':')
-            .map(|j| u8::from_str(j).map_err(|e| GPUError::Generic(e.to_string()))?)
+            .map(|j| u8::from_str(j).unwrap())
             .collect::<Vec<u8>>();
 
         let devices = Device::all();
@@ -346,7 +346,7 @@ pub fn initialize_cuda_request_dispatcher() -> Result<(), GPUError> {
             }
         }
         Ok(())
-    }else {
+    } else {
         Err(GPUError::Generic("Failed to read cuda dispatchers".to_string()))
     }
 }
@@ -440,9 +440,12 @@ fn get_one_free_dispatcher() -> Result<(crossbeam_channel::Sender<CudaRequest>, 
 
 fn free_dispatcher(idx: usize) -> Result<(), GPUError> {
     if let Ok(mut dispatchers) = CUDA_DISPATCH_NEW.write() {
-        let mut dispatcher = dispatchers.get(idx);
-        dispatcher.1.store(true, Ordering::SeqCst);
-        Ok(())
+        if let Some(mut dispatcher) = dispatchers.get(idx) {
+            dispatcher.1.store(true, Ordering::SeqCst);
+            Ok(())
+        } else {
+            Err(GPUError::Generic(format!("GPU idx: {} not found", idx)))
+        }
     } else {
         Err(GPUError::Generic("Failed to read cuda dispatchers".to_string()))
     }
