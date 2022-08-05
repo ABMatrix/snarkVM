@@ -335,7 +335,7 @@ pub fn initialize_cuda_request_dispatcher() -> Result<(), GPUError> {
 
 
         for (i, gpu_idx) in gpus.iter().enumerate() {
-            if let Some(device) = devices.get(*gpu_idx as usize).cloned() {
+            if let Some(device) = devices.get(*gpu_idx as usize) {
                 for _ in 0..gpu_jobs[i] {
                     let (sender, receiver) = crossbeam_channel::bounded(4096);
                     std::thread::spawn(move || initialize_cuda_request_handler(receiver, device));
