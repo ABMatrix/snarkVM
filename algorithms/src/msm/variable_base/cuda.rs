@@ -170,13 +170,13 @@ fn load_cuda_program(device: &Device) -> Result<Program, GPUError> {
     // };
 
     // Find the path to the msm fatbin kernel
-    // let mut file_path = aleo_std::aleo_dir();
-    // file_path.push("resources/cuda/msm.fatbin");
-    //
-    // // If the file does not exist, regenerate the fatbin.
-    // if !file_path.exists() {
-    //     generate_cuda_binary(&file_path, false)?;
-    // }
+    let mut file_path = aleo_std::aleo_dir();
+    file_path.push("resources/cuda/msm.fatbin");
+
+    // If the file does not exist, regenerate the fatbin.
+    if !file_path.exists() {
+        generate_cuda_binary(&file_path, false)?;
+    }
 
     let cuda_device = match device.cuda_device() {
         Some(device) => device,
@@ -185,15 +185,14 @@ fn load_cuda_program(device: &Device) -> Result<Program, GPUError> {
 
     eprintln!("\nUsing '{}' as CUDA device with {} bytes of memory", device.name(), device.memory());
 
-    // let cuda_kernel = std::fs::read(file_path.clone())?;
-    let cuda_kernel= include_bytes!("./blst_377_cuda/msm.fatbin");
+    let cuda_kernel = std::fs::read(file_path.clone())?;
 
     // Load the cuda program from the kernel bytes.
     let cuda_program = match cuda::Program::from_bytes(cuda_device, &cuda_kernel) {
         Ok(program) => program,
         Err(err) => {
             // Delete the failing cuda kernel.
-            // std::fs::remove_file(file_path)?;
+            std::fs::remove_file(file_path)?;
             return Err(err);
         }
     };
