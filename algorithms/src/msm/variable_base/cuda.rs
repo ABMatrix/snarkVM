@@ -393,10 +393,8 @@ pub(super) fn msm_cuda<G: AffineCurve>(
         .map_err(|_| GPUError::DeviceNotFound)?;
 
     match receiver.recv() {
-        Ok(x) => {
-            unsafe {
-                std::mem::transmute_copy(&x)?;
-            }
+        Ok(x) => unsafe {
+            std::mem::transmute_copy(&x)?;
             free_dispatcher(idx)
         },
         Err(_) => {
