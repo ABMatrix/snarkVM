@@ -29,7 +29,6 @@ use std::sync::RwLock;
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
-use crate::msm::{GPU_JOBS_ENV, GPU_LIST_ENV};
 
 pub struct CudaRequest {
     bases: Vec<G1Affine>,
@@ -345,7 +344,8 @@ pub fn initialize_cuda_request_dispatcher() -> Result<()> {
     }
 }
 
-
+pub static GPU_LIST_ENV: &str = "ALEO_GPU_LIST";
+pub static GPU_JOBS_ENV: &str = "ALEO_GPU_JOBS";
 
 lazy_static::lazy_static! {
     static ref CUDA_DISPATCH_NEW: RwLock<Vec<(crossbeam_channel::Sender<CudaRequest>, AtomicBool)>> = RwLock::new(Vec::new())
