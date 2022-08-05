@@ -68,9 +68,9 @@ impl VariableBase {
                 if !HAS_CUDA_FAILED.load(Ordering::SeqCst) {
                     match cuda::msm_cuda(bases, scalars) {
                         Ok(x) => return x,
-                        Err(e) => {
+                        Err(_e) => {
                             HAS_CUDA_FAILED.store(true, Ordering::SeqCst);
-                            eprintln!("CUDA failed with error: {}, moving to the next MSM method", e);
+                            eprintln!("CUDA failed, moving to the next MSM method");
                         }
                     }
                 }
@@ -113,7 +113,7 @@ mod tests {
 
     use rand_xorshift::XorShiftRng;
 
-    fn create_scalar_bases<G: AffineCurve<ScalarField=F>, F: PrimeField>(
+    fn create_scalar_bases<G: AffineCurve<ScalarField = F>, F: PrimeField>(
         rng: &mut XorShiftRng,
         size: usize,
     ) -> (Vec<G>, Vec<F::BigInteger>) {
