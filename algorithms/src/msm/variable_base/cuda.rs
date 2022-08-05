@@ -397,10 +397,10 @@ pub(super) fn msm_cuda<G: AffineCurve>(
             std::mem::transmute_copy(&x)?;
             free_dispatcher(idx)
         },
-        Err(_) => {
+        Err(_) =>{
             free_dispatcher(idx)?;
             Err(GPUError::DeviceNotFound)
-        }
+        },
     }
 
     // CUDA_DISPATCH
@@ -416,7 +416,7 @@ pub(super) fn msm_cuda<G: AffineCurve>(
     // }
 }
 
-fn get_one_free_dispatcher() -> Result<(crossbeam_channel::Sender<CudaRequest>, usize), GPUError> {
+fn get_one_free_dispatcher() -> Result<(crossbeam_channel::Sender<CudaRequest>, usize)> {
     if let Ok(mut dispatchers) = CUDA_DISPATCH_NEW.write() {
         for (idx, d) in dispatchers.iter().enumerate() {
             if d.1.load(Ordering::SeqCst) {
@@ -430,7 +430,7 @@ fn get_one_free_dispatcher() -> Result<(crossbeam_channel::Sender<CudaRequest>, 
     }
 }
 
-fn free_dispatcher(idx: usize) -> Result<(), GPUError> {
+fn free_dispatcher(idx: usize) -> Result<()> {
     if let Ok(mut dispatchers) = CUDA_DISPATCH_NEW.write() {
         let mut dispatcher = dispatchers.get(idx);
         dispatcher.1.store(true, Ordering::SeqCst);
