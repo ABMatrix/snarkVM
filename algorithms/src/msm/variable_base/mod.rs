@@ -33,7 +33,6 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
 use std::env;
-use rust_gpu_tools::GPUError;
 
 #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
 static HAS_CUDA_FAILED: AtomicBool = AtomicBool::new(false);
@@ -43,11 +42,6 @@ pub static GPU_LIST_ENV: &str = "ALEO_GPU_LIST";
 pub static GPU_JOBS_ENV: &str = "ALEO_GPU_JOBS";
 
 pub struct VariableBase;
-
-#[cfg(all(feature = "cuda", target_arch = "x86_64"))]
-pub fn initialize_cuda() -> Result<(), GPUError> {
-    cuda::initialize_cuda_request_dispatcher()
-}
 
 impl VariableBase {
     pub fn msm<G: AffineCurve>(bases: &[G], scalars: &[<G::ScalarField as PrimeField>::BigInteger]) -> G::Projective {
