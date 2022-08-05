@@ -189,7 +189,7 @@ fn load_cuda_program(device: &Device) -> Result<Program, GPUError> {
     let cuda_kernel= include_bytes!("./blst_377_cuda/msm.fatbin");
 
     // Load the cuda program from the kernel bytes.
-    let cuda_program = match cuda::Program::from_bytes(cuda_device, cuda_kernel) {
+    let cuda_program = match cuda::Program::from_bytes(cuda_device, &cuda_kernel) {
         Ok(program) => program,
         Err(err) => {
             // Delete the failing cuda kernel.
