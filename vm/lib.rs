@@ -16,9 +16,7 @@
 
 #![forbid(unsafe_code)]
 #![allow(clippy::module_inception)]
-
-#[macro_use]
-extern crate tracing;
+#![cfg_attr(test, allow(clippy::assertions_on_result_states))]
 
 #[cfg(feature = "cli")]
 #[macro_use]
@@ -28,10 +26,8 @@ extern crate thiserror;
 pub mod cli;
 pub mod file;
 pub mod package;
-pub mod vm;
 
-mod ledger;
-pub use ledger::*;
+pub use snarkvm_compiler as compiler;
 
 #[cfg(feature = "algorithms")]
 pub use snarkvm_algorithms as algorithms;
@@ -41,8 +37,6 @@ pub use snarkvm_circuit as circuit;
 pub use snarkvm_console as console;
 #[cfg(feature = "curves")]
 pub use snarkvm_curves as curves;
-#[cfg(feature = "dpc")]
-pub use snarkvm_dpc as dpc;
 #[cfg(feature = "fields")]
 pub use snarkvm_fields as fields;
 #[cfg(feature = "gadgets")]
@@ -54,21 +48,15 @@ pub use snarkvm_r1cs as r1cs;
 #[cfg(feature = "utilities")]
 pub use snarkvm_utilities as utilities;
 
-pub use snarkvm_compiler as compiler;
-
 pub mod errors {
     #[cfg(feature = "algorithms")]
     pub use crate::algorithms::errors::*;
-
     #[cfg(feature = "curves")]
     pub use crate::curves::errors::*;
-
     #[cfg(feature = "fields")]
     pub use crate::fields::errors::*;
-
     #[cfg(feature = "parameters")]
     pub use crate::parameters::errors::*;
-
     #[cfg(feature = "r1cs")]
     pub use crate::r1cs::errors::*;
 }
@@ -76,32 +64,21 @@ pub mod errors {
 pub mod traits {
     #[cfg(feature = "algorithms")]
     pub use crate::algorithms::traits::*;
-
     #[cfg(feature = "curves")]
     pub use crate::curves::traits::*;
-
     #[cfg(feature = "fields")]
     pub use crate::fields::traits::*;
-
-    #[cfg(feature = "gadgets")]
-    pub use crate::gadgets::traits::*;
-
-    #[cfg(feature = "parameters")]
-    pub use crate::parameters::traits::*;
 }
 
 pub mod prelude {
-    pub use crate::{errors::*, traits::*};
+    pub use crate::{compiler::*, errors::*, traits::*};
 
     #[cfg(feature = "algorithms")]
     pub use crate::algorithms::prelude::*;
-
     #[cfg(feature = "console")]
     pub use crate::console::{account::*, network::*, prelude::*, program::*};
-
     #[cfg(feature = "parameters")]
     pub use crate::parameters::prelude::*;
-
     #[cfg(feature = "utilities")]
     pub use crate::utilities::*;
 }

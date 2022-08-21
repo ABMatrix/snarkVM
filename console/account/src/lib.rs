@@ -16,6 +16,7 @@
 
 #![forbid(unsafe_code)]
 #![allow(clippy::too_many_arguments)]
+#![cfg_attr(test, allow(clippy::assertions_on_result_states))]
 
 pub use snarkvm_console_types::{environment::prelude::*, Address, Field, Group, Scalar};
 
@@ -25,6 +26,11 @@ pub mod address;
 pub mod compute_key;
 #[cfg(feature = "compute_key")]
 pub use compute_key::*;
+
+#[cfg(feature = "graph_key")]
+pub mod graph_key;
+#[cfg(feature = "graph_key")]
+pub use graph_key::*;
 
 #[cfg(feature = "private_key")]
 pub mod private_key;

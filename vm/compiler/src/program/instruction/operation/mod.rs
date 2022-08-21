@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with the snarkVM library. If not, see <https://www.gnu.org/licenses/>.
 
+mod assert;
+pub use assert::*;
+
 mod call;
 pub use call::*;
 
@@ -25,6 +28,9 @@ pub use commit::*;
 
 mod hash;
 pub use hash::*;
+
+mod is;
+pub use is::*;
 
 mod literals;
 pub use literals::*;
@@ -134,43 +140,43 @@ crate::operation!(
     }
 );
 
-// /// Divides `first` by `second`, storing the outcome in `destination`.
-// pub type Div<N> = BinaryLiteral<N, DivOperation<N>>;
-//
-// crate::operation!(
-//     pub struct DivOperation<core::ops::Div, core::ops::Div, div, "div"> {
-//         (Field, Field) => Field,
-//         (I8, I8) => I8 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (I16, I16) => I16 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (I32, I32) => I32 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (I64, I64) => I64 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (I128, I128) => I128 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (U8, U8) => U8 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (U16, U16) => U16 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (U32, U32) => U32 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (U64, U64) => U64 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (U128, U128) => U128 ("ensure overflows halt", "ensure divide by zero halts"),
-//         (Scalar, Scalar) => Scalar,
-//     }
-// );
+/// Divides `first` by `second`, storing the outcome in `destination`.
+pub type Div<N> = BinaryLiteral<N, DivOperation<N>>;
 
-// /// Divides `first` by `second`, wrapping around at the boundary of the type, storing the outcome in `destination`.
-// pub type DivWrapped<N> = BinaryLiteral<N, DivWrappedOperation<N>>;
-//
-// crate::operation!(
-//     pub struct DivWrappedOperation<console::prelude::DivWrapped, circuit::prelude::DivWrapped, div_wrapped, "div.w"> {
-//         (I8, I8) => I8 ("ensure divide by zero halts"),
-//         (I16, I16) => I16 ("ensure divide by zero halts"),
-//         (I32, I32) => I32 ("ensure divide by zero halts"),
-//         (I64, I64) => I64 ("ensure divide by zero halts"),
-//         (I128, I128) => I128 ("ensure divide by zero halts"),
-//         (U8, U8) => U8 ("ensure divide by zero halts"),
-//         (U16, U16) => U16 ("ensure divide by zero halts"),
-//         (U32, U32) => U32 ("ensure divide by zero halts"),
-//         (U64, U64) => U64 ("ensure divide by zero halts"),
-//         (U128, U128) => U128 ("ensure divide by zero halts"),
-//     }
-// );
+crate::operation!(
+    pub struct DivOperation<core::ops::Div, core::ops::Div, div, "div"> {
+        (Field, Field) => Field ("ensure divide by zero halts"),
+        (I8, I8) => I8 ("ensure overflows halt", "ensure divide by zero halts"),
+        (I16, I16) => I16 ("ensure overflows halt", "ensure divide by zero halts"),
+        (I32, I32) => I32 ("ensure overflows halt", "ensure divide by zero halts"),
+        (I64, I64) => I64 ("ensure overflows halt", "ensure divide by zero halts"),
+        (I128, I128) => I128 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U8, U8) => U8 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U16, U16) => U16 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U32, U32) => U32 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U64, U64) => U64 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U128, U128) => U128 ("ensure overflows halt", "ensure divide by zero halts"),
+        // (Scalar, Scalar) => Scalar,
+    }
+);
+
+/// Divides `first` by `second`, wrapping around at the boundary of the type, storing the outcome in `destination`.
+pub type DivWrapped<N> = BinaryLiteral<N, DivWrappedOperation<N>>;
+
+crate::operation!(
+    pub struct DivWrappedOperation<console::prelude::DivWrapped, circuit::prelude::DivWrapped, div_wrapped, "div.w"> {
+        (I8, I8) => I8 ("ensure divide by zero halts"),
+        (I16, I16) => I16 ("ensure divide by zero halts"),
+        (I32, I32) => I32 ("ensure divide by zero halts"),
+        (I64, I64) => I64 ("ensure divide by zero halts"),
+        (I128, I128) => I128 ("ensure divide by zero halts"),
+        (U8, U8) => U8 ("ensure divide by zero halts"),
+        (U16, U16) => U16 ("ensure divide by zero halts"),
+        (U32, U32) => U32 ("ensure divide by zero halts"),
+        (U64, U64) => U64 ("ensure divide by zero halts"),
+        (U128, U128) => U128 ("ensure divide by zero halts"),
+    }
+);
 
 /// Doubles `first`, storing the outcome in `destination`.
 pub type Double<N> = UnaryLiteral<N, DoubleOperation<N>>;
@@ -233,54 +239,6 @@ crate::operation!(
     }
 );
 
-/// Computes whether `first` equals `second` as a boolean, storing the outcome in `destination`.
-pub type IsEqual<N> = BinaryLiteral<N, IsEqualOperation<N>>;
-
-crate::operation!(
-    pub struct IsEqualOperation<console::prelude::Equal, circuit::prelude::Equal, is_equal, "is.eq"> {
-        (Address, Address) => Boolean,
-        (Boolean, Boolean) => Boolean,
-        (Field, Field) => Boolean,
-        (Group, Group) => Boolean,
-        (I8, I8) => Boolean,
-        (I16, I16) => Boolean,
-        (I32, I32) => Boolean,
-        (I64, I64) => Boolean,
-        (I128, I128) => Boolean,
-        (U8, U8) => Boolean,
-        (U16, U16) => Boolean,
-        (U32, U32) => Boolean,
-        (U64, U64) => Boolean,
-        (U128, U128) => Boolean,
-        (Scalar, Scalar) => Boolean,
-        // (StringType, StringType) => Boolean,
-    }
-);
-
-/// Computes whether `first` does **not** equals `second` as a boolean, storing the outcome in `destination`.
-pub type IsNotEqual<N> = BinaryLiteral<N, IsNotEqualOperation<N>>;
-
-crate::operation!(
-    pub struct IsNotEqualOperation<console::prelude::Equal, circuit::prelude::Equal, is_not_equal, "is.neq"> {
-        (Address, Address) => Boolean,
-        (Boolean, Boolean) => Boolean,
-        (Field, Field) => Boolean,
-        (Group, Group) => Boolean,
-        (I8, I8) => Boolean,
-        (I16, I16) => Boolean,
-        (I32, I32) => Boolean,
-        (I64, I64) => Boolean,
-        (I128, I128) => Boolean,
-        (U8, U8) => Boolean,
-        (U16, U16) => Boolean,
-        (U32, U32) => Boolean,
-        (U64, U64) => Boolean,
-        (U128, U128) => Boolean,
-        (Scalar, Scalar) => Boolean,
-        // (StringType, StringType) => Boolean,
-    }
-);
-
 /// Computes whether `first` is less than `second` as a boolean, storing the outcome in `destination`.
 pub type LessThan<N> = BinaryLiteral<N, LessThanOperation<N>>;
 
@@ -320,6 +278,19 @@ crate::operation!(
         (U64, U64) => Boolean,
         (U128, U128) => Boolean,
         (Scalar, Scalar) => Boolean,
+    }
+);
+
+/// Computes the result of `first` mod `second`, storing the outcome in the destination.
+pub type Modulo<N> = BinaryLiteral<N, ModuloOperation<N>>;
+
+crate::operation!(
+    pub struct ModuloOperation<console::prelude::Modulo, circuit::prelude::Modulo, modulo, "mod"> {
+        (U8, U8) => U8("ensure divide by zero halts"),
+        (U16, U16) => U16("ensure divide by zero halts"),
+        (U32, U32) => U32("ensure divide by zero halts"),
+        (U64, U64) => U64("ensure divide by zero halts"),
+        (U128, U128) => U128("ensure divide by zero halts"),
     }
 );
 
@@ -508,6 +479,42 @@ crate::operation!(
         (U128, U8) => U128,
         (U128, U16) => U128,
         (U128, U32) => U128,
+    }
+);
+
+/// Divides `first` by `second`, storing the remainder in `destination`.
+pub type Rem<N> = BinaryLiteral<N, RemOperation<N>>;
+
+crate::operation!(
+    pub struct RemOperation<core::ops::Rem, core::ops::Rem, rem, "rem"> {
+        (I8, I8) => I8 ("ensure overflows halt", "ensure divide by zero halts"),
+        (I16, I16) => I16 ("ensure overflows halt", "ensure divide by zero halts"),
+        (I32, I32) => I32 ("ensure overflows halt", "ensure divide by zero halts"),
+        (I64, I64) => I64 ("ensure overflows halt", "ensure divide by zero halts"),
+        (I128, I128) => I128 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U8, U8) => U8 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U16, U16) => U16 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U32, U32) => U32 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U64, U64) => U64 ("ensure overflows halt", "ensure divide by zero halts"),
+        (U128, U128) => U128 ("ensure overflows halt", "ensure divide by zero halts"),
+    }
+);
+
+/// Divides `first` by `second`, wrapping around at the boundary of the type, storing the remainder in `destination`.
+pub type RemWrapped<N> = BinaryLiteral<N, RemWrappedOperation<N>>;
+
+crate::operation!(
+    pub struct RemWrappedOperation<console::prelude::RemWrapped, circuit::prelude::RemWrapped, rem_wrapped, "rem.w"> {
+        (I8, I8) => I8 ("ensure divide by zero halts"),
+        (I16, I16) => I16 ("ensure divide by zero halts"),
+        (I32, I32) => I32 ("ensure divide by zero halts"),
+        (I64, I64) => I64 ("ensure divide by zero halts"),
+        (I128, I128) => I128 ("ensure divide by zero halts"),
+        (U8, U8) => U8 ("ensure divide by zero halts"),
+        (U16, U16) => U16 ("ensure divide by zero halts"),
+        (U32, U32) => U32 ("ensure divide by zero halts"),
+        (U64, U64) => U64 ("ensure divide by zero halts"),
+        (U128, U128) => U128 ("ensure divide by zero halts"),
     }
 );
 

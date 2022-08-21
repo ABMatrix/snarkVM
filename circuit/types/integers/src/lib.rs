@@ -16,6 +16,7 @@
 
 #![forbid(unsafe_code)]
 #![allow(clippy::too_many_arguments)]
+#![cfg_attr(test, allow(clippy::assertions_on_result_states))]
 
 mod helpers;
 
@@ -28,6 +29,7 @@ pub mod compare;
 pub mod div_checked;
 pub mod div_wrapped;
 pub mod equal;
+pub mod modulo;
 pub mod mul_checked;
 pub mod mul_wrapped;
 pub mod neg;
@@ -35,6 +37,8 @@ pub mod not;
 pub mod or;
 pub mod pow_checked;
 pub mod pow_wrapped;
+pub mod rem_checked;
+pub mod rem_wrapped;
 pub mod shl_checked;
 pub mod shl_wrapped;
 pub mod shr_checked;

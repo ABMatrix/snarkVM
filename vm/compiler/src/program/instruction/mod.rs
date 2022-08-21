@@ -69,6 +69,10 @@ pub enum Instruction<N: Network> {
     AddWrapped(AddWrapped<N>),
     /// Performs a bitwise `and` operation on `first` and `second`, storing the outcome in `destination`.
     And(And<N>),
+    /// Asserts `first` and `second` are equal.
+    AssertEq(AssertEq<N>),
+    /// Asserts `first` and `second` are **not** equal.
+    AssertNeq(AssertNeq<N>),
     /// Calls a closure on the operands.
     Call(Call<N>),
     /// Casts the operands into the declared type.
@@ -81,14 +85,14 @@ pub enum Instruction<N: Network> {
     CommitBHP768(CommitBHP768<N>),
     /// Performs a BHP commitment on inputs of 1024-bit chunks.
     CommitBHP1024(CommitBHP1024<N>),
-    // /// Performs a Pedersen commitment on up to a 64-bit input.
-    // CommitPed64(CommitPed64<N, A>),
-    // /// Performs a Pedersen commitment on up to a 128-bit input.
-    // CommitPed128(CommitPed128<N, A>),
-    // /// Divides `first` by `second`, storing the outcome in `destination`.
-    // Div(Div<N, A>),
-    // /// Divides `first` by `second`, wrapping around at the boundary of the type, and storing the outcome in `destination`.
-    // DivWrapped(DivWrapped<N, A>),
+    /// Performs a Pedersen commitment on up to a 64-bit input.
+    CommitPED64(CommitPED64<N>),
+    /// Performs a Pedersen commitment on up to a 128-bit input.
+    CommitPED128(CommitPED128<N>),
+    /// Divides `first` by `second`, storing the outcome in `destination`.
+    Div(Div<N>),
+    /// Divides `first` by `second`, wrapping around at the boundary of the type, and storing the outcome in `destination`.
+    DivWrapped(DivWrapped<N>),
     /// Doubles `first`, storing the outcome in `destination`.
     Double(Double<N>),
     /// Computes whether `first` is greater than `second` as a boolean, storing the outcome in `destination`.
@@ -116,13 +120,15 @@ pub enum Instruction<N: Network> {
     /// Computes the multiplicative inverse of `first`, storing the outcome in `destination`.
     Inv(Inv<N>),
     /// Computes whether `first` equals `second` as a boolean, storing the outcome in `destination`.
-    IsEqual(IsEqual<N>),
+    IsEq(IsEq<N>),
     /// Computes whether `first` does **not** equals `second` as a boolean, storing the outcome in `destination`.
-    IsNotEqual(IsNotEqual<N>),
+    IsNeq(IsNeq<N>),
     /// Computes whether `first` is less than `second` as a boolean, storing the outcome in `destination`.
     LessThan(LessThan<N>),
     /// Computes whether `first` is less than or equal to `second` as a boolean, storing the outcome in `destination`.
     LessThanOrEqual(LessThanOrEqual<N>),
+    /// Computes `first` mod `second`, storing the outcome in `destination`.
+    Modulo(Modulo<N>),
     /// Multiplies `first` with `second`, storing the outcome in `destination`.
     Mul(Mul<N>),
     /// Multiplies `first` with `second`, wrapping around at the boundary of the type, and storing the outcome in `destination`.
@@ -141,6 +147,10 @@ pub enum Instruction<N: Network> {
     Pow(Pow<N>),
     /// Raises `first` to the power of `second`, wrapping around at the boundary of the type, storing the outcome in `destination`.
     PowWrapped(PowWrapped<N>),
+    /// Divides `first` by `second`, storing the remainder in `destination`.
+    Rem(Rem<N>),
+    /// Divides `first` by `second`, wrapping around at the boundary of the type, storing the remainder in `destination`.
+    RemWrapped(RemWrapped<N>),
     /// Shifts `first` left by `second` bits, storing the outcome in `destination`.
     Shl(Shl<N>),
     /// Shifts `first` left by `second` bits, continuing past the boundary of the type, storing the outcome in `destination`.
@@ -197,16 +207,18 @@ macro_rules! instruction {
             Add,
             AddWrapped,
             And,
+            AssertEq,
+            AssertNeq,
             Call,
             Cast,
             CommitBHP256,
             CommitBHP512,
             CommitBHP768,
             CommitBHP1024,
-            // CommitPed64,
-            // CommitPed128,
-            // Div,
-            // DivWrapped,
+            CommitPED64,
+            CommitPED128,
+            Div,
+            DivWrapped,
             Double,
             GreaterThan,
             GreaterThanOrEqual,
@@ -220,10 +232,11 @@ macro_rules! instruction {
             HashPSD4,
             HashPSD8,
             Inv,
-            IsEqual,
-            IsNotEqual,
+            IsEq,
+            IsNeq,
             LessThan,
             LessThanOrEqual,
+            Modulo,
             Mul,
             MulWrapped,
             Nand,
@@ -233,6 +246,8 @@ macro_rules! instruction {
             Or,
             Pow,
             PowWrapped,
+            Rem,
+            RemWrapped,
             Shl,
             ShlWrapped,
             Shr,
@@ -341,7 +356,7 @@ impl<N: Network> Instruction<N> {
     #[inline]
     pub fn evaluate<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &Stack<N, A>,
+        stack: &Stack<N>,
         registers: &mut Registers<N, A>,
     ) -> Result<()> {
         instruction!(self, |instruction| instruction.evaluate::<A>(stack, registers))
@@ -351,7 +366,7 @@ impl<N: Network> Instruction<N> {
     #[inline]
     pub fn execute<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &Stack<N, A>,
+        stack: &Stack<N>,
         registers: &mut Registers<N, A>,
     ) -> Result<()> {
         instruction!(self, |instruction| instruction.execute::<A>(stack, registers))
@@ -359,11 +374,7 @@ impl<N: Network> Instruction<N> {
 
     /// Returns the output type from the given input types.
     #[inline]
-    pub fn output_types<A: circuit::Aleo<Network = N>>(
-        &self,
-        stack: &Stack<N, A>,
-        input_types: &[RegisterType<N>],
-    ) -> Result<Vec<RegisterType<N>>> {
+    pub fn output_types(&self, stack: &Stack<N>, input_types: &[RegisterType<N>]) -> Result<Vec<RegisterType<N>>> {
         instruction!(self, |instruction| instruction.output_types(stack, input_types))
     }
 }
@@ -393,7 +404,7 @@ mod tests {
     fn test_opcodes() {
         // Sanity check the number of instructions is unchanged.
         assert_eq!(
-            47,
+            56,
             Instruction::<CurrentNetwork>::OPCODES.len(),
             "Update me if the number of instructions changes."
         );

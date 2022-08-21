@@ -22,6 +22,8 @@
 extern crate alloc;
 
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 extern crate thiserror;
 
 #[macro_use]
@@ -30,15 +32,8 @@ pub mod macros;
 pub mod errors;
 pub use errors::*;
 
-pub mod testnet1;
-
-pub mod testnet2;
-
 pub mod testnet3;
 
-pub mod traits;
-pub use traits::*;
-
 pub mod prelude {
-    pub use crate::{errors::*, traits::*};
+    pub use crate::errors::*;
 }

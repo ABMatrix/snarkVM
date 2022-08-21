@@ -19,23 +19,33 @@ mod clean;
 mod is_build_required;
 mod run;
 
+pub use build::{BuildRequest, BuildResponse};
+
 use crate::{
     file::{AVMFile, AleoFile, Manifest, ProverFile, VerifierFile, README},
-    prelude::{Identifier, Locator, Network, PrivateKey, ProgramID, Response, ToBytes, Value},
+    prelude::{
+        de,
+        Deserialize,
+        Deserializer,
+        Identifier,
+        Locator,
+        Network,
+        PrivateKey,
+        ProgramID,
+        Response,
+        Serialize,
+        SerializeStruct,
+        Serializer,
+        Value,
+    },
 };
-use snarkvm_compiler::{CallOperator, Execution, Instruction, Process, Program};
+use snarkvm_compiler::{CallOperator, Execution, Instruction, Process, Program, ProvingKey, VerifyingKey};
 
-use crate::file::SRSFile;
 use anyhow::{bail, ensure, Error, Result};
 use colored::Colorize;
 use core::str::FromStr;
 use rand::{CryptoRng, Rng};
 use std::path::{Path, PathBuf};
-
-pub enum PackageMode<N: Network> {
-    Build,
-    Run(Identifier<N>),
-}
 
 pub struct Package<N: Network> {
     /// The program ID.
@@ -139,10 +149,7 @@ impl<N: Network> Package<N> {
     }
 
     /// Returns a new process for the package.
-    pub fn get_process<A: crate::circuit::Aleo<Network = N, BaseField = N::Field>>(
-        &self,
-        mode: PackageMode<N>,
-    ) -> Result<Process<N, A>> {
+    pub fn get_process(&self) -> Result<Process<N>> {
         // Prepare the build directory.
         let build_directory = self.build_directory();
         // Ensure the build directory exists.
@@ -151,16 +158,7 @@ impl<N: Network> Package<N> {
         }
 
         // Create the process.
-        let mut process = if let PackageMode::Build = mode {
-            match SRSFile::<N>::exists_at(&build_directory) {
-                // Load the universal SRS, then initialize the process.
-                true => Process::<N, A>::from_universal_srs(SRSFile::open(&build_directory)?.universal_srs())?,
-                // Create the universal SRS, then initialize the process.
-                false => Process::<N, A>::from_universal_srs(SRSFile::create(&build_directory)?.universal_srs())?,
-            }
-        } else {
-            Process::<N, A>::new()?
-        };
+        let mut process = Process::load()?;
 
         // Prepare the imports directory.
         let imports_directory = self.imports_directory();
@@ -175,8 +173,61 @@ impl<N: Network> Package<N> {
         })?;
 
         // Add the program to the process.
-        process.add_program(&self.program())?;
+        process.add_program(self.program())?;
 
         Ok(process)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use snarkvm_console::network::Testnet3;
+    use std::{fs::File, io::Write};
+
+    type CurrentNetwork = Testnet3;
+
+    fn temp_dir() -> PathBuf {
+        tempfile::tempdir().expect("Failed to open temporary directory").into_path()
+    }
+
+    #[test]
+    fn test_get_process() {
+        // Initialize a temporary directory.
+        let directory = temp_dir();
+
+        let program_id = ProgramID::<CurrentNetwork>::from_str("token.aleo").unwrap();
+
+        let program_string = r"
+program token.aleo;
+
+record token:
+    owner as address.private;
+    gates as u64.private;
+    token_amount as u64.private;
+
+function compute:
+    input r0 as token.record;
+    add.w r0.token_amount r0.token_amount into r1;
+    output r1 as u64.private;";
+
+        // Write the program string to a file in the temporary directory.
+        let path = directory.join("main.aleo");
+        let mut file = File::create(&path).unwrap();
+        file.write_all(program_string.as_bytes()).unwrap();
+
+        // Create the manifest file.
+        let _manifest_file = Manifest::create(&directory, &program_id).unwrap();
+
+        // Create the build directory.
+        let build_directory = directory.join("build");
+        std::fs::create_dir_all(&build_directory).unwrap();
+
+        // Open the package at the temporary directory.
+        let package = Package::<Testnet3>::open(&directory).unwrap();
+
+        // Get the program process and check all instructions.
+        assert!(package.get_process().is_ok());
+        assert_eq!(package.program_id(), &program_id);
     }
 }

@@ -16,6 +16,7 @@
 
 #![forbid(unsafe_code)]
 #![allow(clippy::too_many_arguments)]
+#![cfg_attr(test, allow(clippy::assertions_on_result_states))]
 
 #[cfg(test)]
 use snarkvm_circuit_network::AleoV0 as Circuit;
@@ -35,7 +36,9 @@ pub use response::*;
 use snarkvm_circuit_network::Aleo;
 use snarkvm_circuit_types::{environment::prelude::*, Boolean};
 
-pub trait Visibility<A: Aleo>: ToBits<Boolean = Boolean<A>> + FromBits + ToFields + FromFields {
+pub trait Visibility<A: Aleo>:
+    Equal<Self, Output = <Self as ToBits>::Boolean> + ToBits<Boolean = Boolean<A>> + FromBits + ToFields + FromFields
+{
     /// Returns the number of field elements to encode `self`.
     fn size_in_fields(&self) -> u16;
 }

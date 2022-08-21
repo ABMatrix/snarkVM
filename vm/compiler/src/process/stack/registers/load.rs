@@ -24,7 +24,7 @@ impl<N: Network, A: circuit::Aleo<Network = N>> Registers<N, A> {
     /// This method will halt if the register locator is not found.
     /// In the case of register members, this method will halt if the member is not found.
     #[inline]
-    pub fn load_literal(&self, stack: &Stack<N, A>, operand: &Operand<N>) -> Result<Literal<N>> {
+    pub fn load_literal(&self, stack: &Stack<N>, operand: &Operand<N>) -> Result<Literal<N>> {
         match self.load(stack, operand)? {
             Value::Plaintext(Plaintext::Literal(literal, ..)) => Ok(literal),
             Value::Plaintext(Plaintext::Interface(..)) => bail!("Operand must be a literal"),
@@ -38,13 +38,19 @@ impl<N: Network, A: circuit::Aleo<Network = N>> Registers<N, A> {
     /// This method will halt if the register locator is not found.
     /// In the case of register members, this method will halt if the member is not found.
     #[inline]
-    pub fn load(&self, stack: &Stack<N, A>, operand: &Operand<N>) -> Result<Value<N>> {
+    pub fn load(&self, stack: &Stack<N>, operand: &Operand<N>) -> Result<Value<N>> {
         // Retrieve the register.
         let register = match operand {
             // If the operand is a literal, return the literal.
             Operand::Literal(literal) => return Ok(Value::Plaintext(Plaintext::from(literal))),
             // If the operand is a register, load the value from the register.
             Operand::Register(register) => register,
+            // If the operand is the program ID, load the program address.
+            Operand::ProgramID(program_id) => {
+                return Ok(Value::Plaintext(Plaintext::from(Literal::Address(program_id.to_address()?))));
+            }
+            // If the operand is the caller, load the value of the caller.
+            Operand::Caller => return Ok(Value::Plaintext(Plaintext::from(Literal::Address(self.caller()?)))),
         };
 
         // Retrieve the stack value.
@@ -90,11 +96,7 @@ impl<N: Network, A: circuit::Aleo<Network = N>> Registers<N, A> {
     /// This method will halt if the register locator is not found.
     /// In the case of register members, this method will halt if the member is not found.
     #[inline]
-    pub fn load_literal_circuit(
-        &self,
-        stack: &Stack<N, A>,
-        operand: &Operand<N>,
-    ) -> Result<circuit::program::Literal<A>> {
+    pub fn load_literal_circuit(&self, stack: &Stack<N>, operand: &Operand<N>) -> Result<circuit::program::Literal<A>> {
         match self.load_circuit(stack, operand)? {
             circuit::Value::Plaintext(circuit::Plaintext::Literal(literal, ..)) => Ok(literal),
             circuit::Value::Plaintext(circuit::Plaintext::Interface(..)) => bail!("Operand must be a literal"),
@@ -108,7 +110,7 @@ impl<N: Network, A: circuit::Aleo<Network = N>> Registers<N, A> {
     /// This method will halt if the register locator is not found.
     /// In the case of register members, this method will halt if the member is not found.
     #[inline]
-    pub fn load_circuit(&self, stack: &Stack<N, A>, operand: &Operand<N>) -> Result<circuit::Value<A>> {
+    pub fn load_circuit(&self, stack: &Stack<N>, operand: &Operand<N>) -> Result<circuit::Value<A>> {
         use circuit::Inject;
 
         // Retrieve the register.
@@ -121,6 +123,18 @@ impl<N: Network, A: circuit::Aleo<Network = N>> Registers<N, A> {
             }
             // If the operand is a register, load the value from the register.
             Operand::Register(register) => register,
+            // If the operand is the program ID, load the program address.
+            Operand::ProgramID(program_id) => {
+                return Ok(circuit::Value::Plaintext(circuit::Plaintext::from(circuit::Literal::constant(
+                    Literal::Address(program_id.to_address()?),
+                ))));
+            }
+            // If the operand is the caller, load the value of the caller.
+            Operand::Caller => {
+                return Ok(circuit::Value::Plaintext(circuit::Plaintext::from(circuit::Literal::Address(
+                    self.caller_circuit()?,
+                ))));
+            }
         };
 
         // Retrieve the circuit value.

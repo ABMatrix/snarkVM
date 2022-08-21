@@ -76,7 +76,7 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
             6 => Opcode::Hash("hash.psd2"),
             7 => Opcode::Hash("hash.psd4"),
             8 => Opcode::Hash("hash.psd8"),
-            _ => panic!("Invalid hash instruction opcode"),
+            _ => panic!("Invalid 'hash' instruction opcode"),
         }
     }
 
@@ -101,7 +101,7 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
     #[inline]
     pub fn evaluate<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &Stack<N, A>,
+        stack: &Stack<N>,
         registers: &mut Registers<N, A>,
     ) -> Result<()> {
         // Ensure the number of operands is correct.
@@ -121,19 +121,17 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
             6 => N::hash_psd2(&input.to_fields()?)?,
             7 => N::hash_psd4(&input.to_fields()?)?,
             8 => N::hash_psd8(&input.to_fields()?)?,
-            _ => bail!("Invalid hash variant: {VARIANT}"),
+            _ => bail!("Invalid 'hash' variant: {VARIANT}"),
         };
-        // Convert the output to a stack value.
-        let output = Value::Plaintext(Plaintext::Literal(Literal::Field(output), Default::default()));
         // Store the output.
-        registers.store(stack, &self.destination, output)
+        registers.store(stack, &self.destination, Value::Plaintext(Plaintext::from(Literal::Field(output))))
     }
 
     /// Executes the instruction.
     #[inline]
     pub fn execute<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &Stack<N, A>,
+        stack: &Stack<N>,
         registers: &mut Registers<N, A>,
     ) -> Result<()> {
         use circuit::{ToBits, ToFields};
@@ -155,7 +153,7 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
             6 => A::hash_psd2(&input.to_fields()),
             7 => A::hash_psd4(&input.to_fields()),
             8 => A::hash_psd8(&input.to_fields()),
-            _ => bail!("Invalid hash variant: {VARIANT}"),
+            _ => bail!("Invalid 'hash' variant: {VARIANT}"),
         };
         // Convert the output to a stack value.
         let output =
@@ -166,11 +164,7 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
 
     /// Returns the output type from the given program and input types.
     #[inline]
-    pub fn output_types<A: circuit::Aleo<Network = N>>(
-        &self,
-        _stack: &Stack<N, A>,
-        input_types: &[RegisterType<N>],
-    ) -> Result<Vec<RegisterType<N>>> {
+    pub fn output_types(&self, _stack: &Stack<N>, input_types: &[RegisterType<N>]) -> Result<Vec<RegisterType<N>>> {
         // Ensure the number of input types is correct.
         if input_types.len() != 1 {
             bail!("Instruction '{}' expects 1 inputs, found {} inputs", Self::opcode(), input_types.len())
@@ -186,7 +180,7 @@ impl<N: Network, const VARIANT: u8> HashInstruction<N, VARIANT> {
             0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 => {
                 Ok(vec![RegisterType::Plaintext(PlaintextType::Literal(LiteralType::Field))])
             }
-            _ => bail!("Invalid hash variant: {VARIANT}"),
+            _ => bail!("Invalid 'hash' variant: {VARIANT}"),
         }
     }
 }
@@ -249,7 +243,7 @@ impl<N: Network, const VARIANT: u8> Display for HashInstruction<N, VARIANT> {
         }
         // Print the operation.
         write!(f, "{} ", Self::opcode())?;
-        write!(f, "{} ", self.operands[0])?;
+        self.operands.iter().try_for_each(|operand| write!(f, "{} ", operand))?;
         write!(f, "into {}", self.destination)
     }
 }

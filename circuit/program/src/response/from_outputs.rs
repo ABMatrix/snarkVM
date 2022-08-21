@@ -17,34 +17,57 @@
 use super::*;
 
 impl<A: Aleo> Response<A> {
-    /// Initializes a response, given the number of inputs, caller, tvk, outputs, and output types.
+    /// Initializes a response, given the number of inputs, caller, tvk, tcm, outputs, output types, and output registers.
     pub fn from_outputs(
         program_id: &ProgramID<A>,
         num_inputs: usize,
         tvk: &Field<A>,
+        tcm: &Field<A>,
         outputs: Vec<Value<A>>,
-        output_types: &[console::ValueType<A::Network>],
+        output_types: &[console::ValueType<A::Network>], // Note: Console type
+        output_registers: &[console::Register<A::Network>], // Note: Console type
     ) -> Self {
         // Compute the output IDs.
         let output_ids = outputs
             .iter()
             .zip_eq(output_types)
+            .zip_eq(output_registers)
             .enumerate()
-            .map(|(index, (output, output_types))| {
-                match output_types {
-                    // For a constant output, compute the hash of the output.
+            .map(|(index, ((output, output_type), output_register))| {
+                match output_type {
+                    // For a constant output, compute the hash (using `tcm`) of the output.
                     console::ValueType::Constant(..) => {
+                        // Prepare the index as a constant field element.
+                        let output_index = Field::constant(console::Field::from_u16((num_inputs + index) as u16));
+                        // Construct the preimage as `(output || tcm || index)`.
+                        let mut preimage = output.to_fields();
+                        preimage.push(tcm.clone());
+                        preimage.push(output_index);
+
                         // Hash the output to a field element.
-                        let output_hash = A::hash_bhp1024(&output.to_bits_le());
-                        // Return the output ID.
-                        OutputID::constant(output_hash)
+                        match &output {
+                            // Return the output ID.
+                            Value::Plaintext(..) => OutputID::constant(A::hash_psd8(&preimage)),
+                            // Ensure the output is a plaintext.
+                            Value::Record(..) => A::halt("Expected a plaintext output, found a record output"),
+                        }
                     }
-                    // For a public output, compute the hash of the output.
+                    // For a public output, compute the hash (using `tcm`) of the output.
                     console::ValueType::Public(..) => {
+                        // Prepare the index as a constant field element.
+                        let output_index = Field::constant(console::Field::from_u16((num_inputs + index) as u16));
+                        // Construct the preimage as `(output || tcm || index)`.
+                        let mut preimage = output.to_fields();
+                        preimage.push(tcm.clone());
+                        preimage.push(output_index);
+
                         // Hash the output to a field element.
-                        let output_hash = A::hash_bhp1024(&output.to_bits_le());
-                        // Return the output ID.
-                        OutputID::public(output_hash)
+                        match &output {
+                            // Return the output ID.
+                            Value::Plaintext(..) => OutputID::public(A::hash_psd8(&preimage)),
+                            // Ensure the output is a plaintext.
+                            Value::Record(..) => A::halt("Expected a plaintext output, found a record output"),
+                        }
                     }
                     // For a private output, compute the ciphertext (using `tvk`) and hash the ciphertext.
                     console::ValueType::Private(..) => {
@@ -58,10 +81,8 @@ impl<A: Aleo> Response<A> {
                             // Ensure the output is a plaintext.
                             Value::Record(..) => A::halt("Expected a plaintext output, found a record output"),
                         };
-                        // Hash the ciphertext to a field element.
-                        let output_hash = A::hash_bhp1024(&ciphertext.to_bits_le());
                         // Return the output ID.
-                        OutputID::private(output_hash)
+                        OutputID::private(A::hash_psd8(&ciphertext.to_fields()))
                     }
                     // For a record output, compute the record commitment, and encrypt the record (using `tvk`).
                     console::ValueType::Record(record_name) => {
@@ -72,16 +93,13 @@ impl<A: Aleo> Response<A> {
                             Value::Plaintext(..) => A::halt("Expected a record output, found a plaintext output"),
                         };
 
+                        // Compute the record commitment.
+                        let commitment = record.to_commitment(program_id, &Identifier::constant(*record_name));
+
                         // Prepare the index as a constant field element.
-                        let output_index = Field::constant(console::Field::from_u16((num_inputs + index) as u16));
+                        let output_index = Field::constant(console::Field::from_u64(output_register.locator()));
                         // Compute the encryption randomizer as `HashToScalar(tvk || index)`.
                         let randomizer = A::hash_to_scalar_psd2(&[tvk.clone(), output_index]);
-                        // Compute the record commitment.
-                        let commitment =
-                            record.to_commitment(program_id, &Identifier::constant(*record_name), &randomizer);
-
-                        // Compute the record nonce.
-                        let nonce = A::g_scalar_multiply(&randomizer).to_x_coordinate();
 
                         // Encrypt the record, using the randomizer.
                         let encrypted_record = record.encrypt(&randomizer);
@@ -89,18 +107,23 @@ impl<A: Aleo> Response<A> {
                         let checksum = A::hash_bhp1024(&encrypted_record.to_bits_le());
 
                         // Return the output ID.
-                        OutputID::record(commitment, nonce, checksum)
+                        OutputID::record(commitment, checksum)
                     }
-                    // For an external record output, compute the commitment (using `tvk`) of the output.
+                    // For an external record output, compute the hash (using `tvk`) of the output.
                     console::ValueType::ExternalRecord(..) => {
                         // Prepare the index as a constant field element.
                         let output_index = Field::constant(console::Field::from_u16((num_inputs + index) as u16));
-                        // Compute the commitment randomizer as `HashToScalar(tvk || index)`.
-                        let randomizer = A::hash_to_scalar_psd2(&[tvk.clone(), output_index]);
-                        // Commit the output to a field element.
-                        let commitment = A::commit_bhp1024(&output.to_bits_le(), &randomizer);
+                        // Construct the preimage as `(output || tvk || index)`.
+                        let mut preimage = output.to_fields();
+                        preimage.push(tvk.clone());
+                        preimage.push(output_index);
+
                         // Return the output ID.
-                        OutputID::external_record(commitment)
+                        match &output {
+                            Value::Record(..) => OutputID::external_record(A::hash_psd8(&preimage)),
+                            // Ensure the output is a record.
+                            Value::Plaintext(..) => A::halt("Expected a record output, found a plaintext output"),
+                        }
                     }
                 }
             })
@@ -121,11 +144,29 @@ mod tests {
 
     pub(crate) const ITERATIONS: usize = 20;
 
-    fn check_verify(mode: Mode) -> Result<()> {
+    fn check_from_outputs(
+        mode: Mode,
+        num_constants: u64,
+        num_public: u64,
+        num_private: u64,
+        num_constraints: u64,
+    ) -> Result<()> {
+        use console::Network;
+
         let rng = &mut test_crypto_rng();
 
-        for _ in 0..ITERATIONS {
-            // Construct four outputs.
+        for i in 0..ITERATIONS {
+            // Sample a `tvk`.
+            let tvk = console::Field::rand(rng);
+            // Compute the transition commitment as `Hash(tvk)`.
+            let tcm = <Circuit as Environment>::Network::hash_psd2(&[tvk])?;
+
+            // Compute the nonce.
+            let index = console::Field::from_u64(8);
+            let randomizer = <Circuit as Environment>::Network::hash_to_scalar_psd2(&[tvk, index]).unwrap();
+            let nonce = <Circuit as Environment>::Network::g_scalar_multiply(&randomizer);
+
+            // Construct the outputs.
             let output_constant = console::Value::<<Circuit as Environment>::Network>::Plaintext(
                 console::Plaintext::from_str("{ token_amount: 9876543210u128 }").unwrap(),
             );
@@ -135,8 +176,8 @@ mod tests {
             let output_private = console::Value::<<Circuit as Environment>::Network>::Plaintext(
                 console::Plaintext::from_str("{ token_amount: 9876543210u128 }").unwrap(),
             );
-            let output_record = console::Value::<<Circuit as Environment>::Network>::Record(console::Record::from_str("{ owner: aleo1d5hg2z3ma00382pngntdp68e74zv54jdxy249qhaujhks9c72yrs33ddah.private, gates: 5u64.private, token_amount: 100u64.private }").unwrap());
-            let output_external_record = console::Value::<<Circuit as Environment>::Network>::Record(console::Record::from_str("{ owner: aleo1d5hg2z3ma00382pngntdp68e74zv54jdxy249qhaujhks9c72yrs33ddah.private, gates: 5u64.private, token_amount: 100u64.private }").unwrap());
+            let output_record = console::Value::<<Circuit as Environment>::Network>::Record(console::Record::from_str(&format!("{{ owner: aleo1d5hg2z3ma00382pngntdp68e74zv54jdxy249qhaujhks9c72yrs33ddah.private, gates: 5u64.private, token_amount: 100u64.private, _nonce: {nonce}.public }}")).unwrap());
+            let output_external_record = console::Value::<<Circuit as Environment>::Network>::Record(console::Record::from_str("{ owner: aleo1d5hg2z3ma00382pngntdp68e74zv54jdxy249qhaujhks9c72yrs33ddah.private, gates: 5u64.private, token_amount: 100u64.private, _nonce: 0group.public }").unwrap());
             let outputs = vec![output_constant, output_public, output_private, output_record, output_external_record];
 
             // Construct the output types.
@@ -148,44 +189,58 @@ mod tests {
                 console::ValueType::from_str("token.aleo/token.record").unwrap(),
             ];
 
-            // Sample a `tvk`.
-            let tvk = Uniform::rand(rng);
+            // Construct the output registers.
+            let output_registers = vec![
+                console::Register::Locator(5),
+                console::Register::Locator(6),
+                console::Register::Locator(7),
+                console::Register::Locator(8),
+                console::Register::Locator(9),
+            ];
 
             // Construct a program ID.
             let program_id = console::ProgramID::from_str("test.aleo")?;
 
             // Construct the response.
-            let response = console::Response::new(&program_id, 4, &tvk, outputs.clone(), &output_types)?;
-            // assert!(response.verify());
+            let response =
+                console::Response::new(&program_id, 4, &tvk, &tcm, outputs.clone(), &output_types, &output_registers)?;
 
-            // Inject the response into a circuit.
+            // Inject the program ID, `tvk`, `tcm`, and outputs.
             let program_id = ProgramID::<Circuit>::new(mode, program_id);
             let tvk = Field::<Circuit>::new(mode, tvk);
-            let response = Response::<Circuit>::new(mode, response);
-            assert!(response.verify(&program_id, 4, &tvk, &output_types).eject_value());
-
-            // Compute the response using outputs (circuit).
+            let tcm = Field::<Circuit>::new(mode, tcm);
             let outputs = Inject::new(mode, outputs);
-            let response = Response::from_outputs(&program_id, 4, &tvk, outputs, &output_types);
-            assert!(response.verify(&program_id, 4, &tvk, &output_types).eject_value());
 
+            Circuit::scope(format!("Response {i}"), || {
+                // Compute the response using outputs (circuit).
+                let candidate =
+                    Response::from_outputs(&program_id, 4, &tvk, &tcm, outputs, &output_types, &output_registers);
+                assert_eq!(response, candidate.eject_value());
+                match mode.is_constant() {
+                    true => assert_scope!(<=num_constants, <=num_public, <=num_private, <=num_constraints),
+                    false => assert_scope!(<=num_constants, num_public, num_private, num_constraints),
+                }
+            });
             Circuit::reset();
         }
         Ok(())
     }
 
+    // Note: These counts are correct. At this (high) level of a program, we override the default mode in many cases,
+    // based on the user-defined visibility in the types. Thus, we have nonzero public, private, and constraint values.
+
     #[test]
     fn test_from_outputs_constant() -> Result<()> {
-        check_verify(Mode::Constant)
+        check_from_outputs(Mode::Constant, 19100, 6, 9400, 9400)
     }
 
     #[test]
     fn test_from_outputs_public() -> Result<()> {
-        check_verify(Mode::Public)
+        check_from_outputs(Mode::Public, 18172, 6, 13702, 13751)
     }
 
     #[test]
     fn test_from_outputs_private() -> Result<()> {
-        check_verify(Mode::Private)
+        check_from_outputs(Mode::Private, 18172, 6, 13702, 13751)
     }
 }

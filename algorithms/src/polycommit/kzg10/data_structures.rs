@@ -16,7 +16,7 @@
 
 use crate::{
     fft::{DensePolynomial, EvaluationDomain},
-    snark::marlin::{params::OptimizationType, FiatShamirError, FiatShamirRng},
+    AlgebraicSponge,
 };
 use snarkvm_curves::{AffineCurve, PairingCurve, PairingEngine, ProjectiveCurve};
 use snarkvm_fields::{ConstraintFieldError, PrimeField, ToConstraintField, Zero};
@@ -128,22 +128,22 @@ impl<E: PairingEngine> CanonicalDeserialize for UniversalParams<E> {
 }
 
 impl<E: PairingEngine> UniversalParams<E> {
-    pub fn lagrange_basis(&self, domain: EvaluationDomain<E::Fr>) -> Vec<E::G1Affine> {
+    pub fn lagrange_basis(&self, domain: EvaluationDomain<E::Fr>) -> Result<Vec<E::G1Affine>> {
         let basis = domain
-            .ifft(&self.powers_of_beta_g(0, domain.size()).iter().map(|e| (*e).to_projective()).collect::<Vec<_>>());
-        E::G1Projective::batch_normalization_into_affine(basis)
+            .ifft(&self.powers_of_beta_g(0, domain.size())?.iter().map(|e| (*e).to_projective()).collect::<Vec<_>>());
+        Ok(E::G1Projective::batch_normalization_into_affine(basis))
     }
 
-    pub fn power_of_beta_g(&self, which_power: usize) -> E::G1Affine {
+    pub fn power_of_beta_g(&self, which_power: usize) -> Result<E::G1Affine> {
         self.powers.write().power_of_beta_g(which_power)
     }
 
-    pub fn powers_of_beta_g(&self, lower: usize, upper: usize) -> Vec<E::G1Affine> {
+    pub fn powers_of_beta_g(&self, lower: usize, upper: usize) -> Result<Vec<E::G1Affine>> {
         self.powers.write().powers_of_beta_g(lower, upper)
     }
 
     pub fn get_powers_times_gamma_g(&self) -> BTreeMap<usize, E::G1Affine> {
-        self.powers.read().get_powers_times_gamma_g().clone()
+        self.powers.read().powers_times_gamma_g().clone()
     }
 
     pub fn download_up_to(&self, degree: usize) -> Result<()> {
@@ -529,12 +529,11 @@ pub struct Proof<E: PairingEngine> {
 }
 
 impl<E: PairingEngine> Proof<E> {
-    pub fn absorb_into_sponge<S: FiatShamirRng<E::Fr, E::Fq>>(&self, sponge: &mut S) -> Result<(), FiatShamirError> {
-        sponge.absorb_native_field_elements(&self.w.to_field_elements()?);
+    pub fn absorb_into_sponge(&self, sponge: &mut impl AlgebraicSponge<E::Fq, 2>) {
+        sponge.absorb_native_field_elements(&self.w.to_field_elements().unwrap());
         if let Some(random_v) = self.random_v {
-            sponge.absorb_nonnative_field_elements([random_v], OptimizationType::Weight);
+            sponge.absorb_nonnative_field_elements([random_v]);
         }
-        Ok(())
     }
 }
 

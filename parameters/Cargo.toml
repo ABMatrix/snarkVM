@@ -45,6 +45,9 @@ optional = true
 [dependencies.hex]
 version = "0.4.3"
 
+[dependencies.indexmap]
+version = "1.9"
+
 [dependencies.itertools]
 version = "0.10.3"
 
@@ -80,13 +83,16 @@ version = "0.11"
 features = [ "wasm-bindgen" ]
 optional = true
 
+[dev-dependencies.snarkvm]
+path = ".."
+
 [dev-dependencies.snarkvm-algorithms]
 path = "../algorithms"
 version = "0.7.5"
 default-features = false
 
-[dev-dependencies.snarkvm-dpc]
-path = "../dpc"
+[dev-dependencies.snarkvm-console]
+path = "../console"
 
 [dev-dependencies.curl]
 version = "0.4.34"

@@ -342,22 +342,22 @@ mod tests {
     macro_rules! sample_literals {
         ($network:ident, $rng:expr) => {
             [
-                console::program::Literal::<$network>::Address(Address::new(Uniform::rand($rng))),
-                console::program::Literal::Boolean(Boolean::rand($rng)),
-                console::program::Literal::Field(Field::rand($rng)),
-                console::program::Literal::Group(Group::rand($rng)),
-                console::program::Literal::I8(I8::rand($rng)),
-                console::program::Literal::I16(I16::rand($rng)),
-                console::program::Literal::I32(I32::rand($rng)),
-                console::program::Literal::I64(I64::rand($rng)),
-                console::program::Literal::I128(I128::rand($rng)),
-                console::program::Literal::U8(U8::rand($rng)),
-                console::program::Literal::U16(U16::rand($rng)),
-                console::program::Literal::U32(U32::rand($rng)),
-                console::program::Literal::U64(U64::rand($rng)),
-                console::program::Literal::U128(U128::rand($rng)),
-                console::program::Literal::Scalar(Scalar::rand($rng)),
-                console::program::Literal::String(StringType::rand($rng)),
+                console::program::Literal::<$network>::Address(console::types::Address::new(Uniform::rand($rng))),
+                console::program::Literal::Boolean(console::types::Boolean::rand($rng)),
+                console::program::Literal::Field(console::types::Field::rand($rng)),
+                console::program::Literal::Group(console::types::Group::rand($rng)),
+                console::program::Literal::I8(console::types::I8::rand($rng)),
+                console::program::Literal::I16(console::types::I16::rand($rng)),
+                console::program::Literal::I32(console::types::I32::rand($rng)),
+                console::program::Literal::I64(console::types::I64::rand($rng)),
+                console::program::Literal::I128(console::types::I128::rand($rng)),
+                console::program::Literal::U8(console::types::U8::rand($rng)),
+                console::program::Literal::U16(console::types::U16::rand($rng)),
+                console::program::Literal::U32(console::types::U32::rand($rng)),
+                console::program::Literal::U64(console::types::U64::rand($rng)),
+                console::program::Literal::U128(console::types::U128::rand($rng)),
+                console::program::Literal::Scalar(console::types::Scalar::rand($rng)),
+                console::program::Literal::String(console::types::StringType::rand($rng)),
             ]
         };
     }
@@ -706,6 +706,10 @@ mod tests {
                         let mut should_succeed = true;
                         #[allow(unused_mut)]
                         let mut is_shift_operator = false;
+                        #[allow(unused_mut)]
+                        let mut shift_exceeds_bitwidth = false;
+                        #[allow(unused_mut)]
+                        let mut is_division_operator = false;
                         /// A helper macro to check the conditions.
                         #[allow(unused_macros)]
                         macro_rules! check_condition {
@@ -714,6 +718,7 @@ mod tests {
                                     "add" => should_succeed &= (*a).checked_add(*b).is_some(),
                                     "div" => should_succeed &= (*a).checked_div(*b).is_some(),
                                     "mul" => should_succeed &= (*a).checked_mul(*b).is_some(),
+                                    "rem" => should_succeed &= (*a).checked_rem(*b).is_some(),
                                     "sub" => should_succeed &= (*a).checked_sub(*b).is_some(),
                                     _ => panic!("Unsupported test enforcement for '{}'", <$operation as $crate::Operation<_, _, _, 2>>::OPCODE),
                                 }
@@ -723,15 +728,19 @@ mod tests {
                             };
                             ("ensure shifting past boundary halts") => {
                                 match *<$operation as $crate::Operation<_, _, _, 2>>::OPCODE {
-                                    "shl" => should_succeed &= (*a).checked_shl(*b as u32).is_some(),
+                                    // Note that this case needs special handling, since the desired behavior of `checked_shl` deviates from Rust semantics.
+                                    "shl" => should_succeed &= console::prelude::traits::integers::CheckedShl::checked_shl(&*a, &(*b as u32)).is_some(),
                                     "shr" => should_succeed &= (*a).checked_shr(*b as u32).is_some(),
                                     _ => panic!("Unsupported test enforcement for '{}'", <$operation as $crate::Operation<_, _, _, 2>>::OPCODE),
                                 }
-                                // This indicator is later used in the for-loops below.
+                                // These indicators are later used in the for-loops below.
                                 is_shift_operator |= true;
+                                shift_exceeds_bitwidth |= ((*b as u32) >= $input_a::<CurrentNetwork>::size_in_bits() as u32);
                             };
-                            ("ensure divide by zero halt") => {
-                                should_succeed &= (*b) != 0
+                            ("ensure divide by zero halts") => {
+                                should_succeed &= (*b) != *$input_b::<CurrentNetwork>::zero();
+                                // This indicator is later used in the for-loops below.
+                                is_division_operator |= true;
                             };
                         }
                         // Check the conditions.
@@ -756,8 +765,10 @@ mod tests {
                                 // This indicator bit is used to check that a case panics on halt,
                                 // instead of checking that the circuit is not satisfied (i.e. for `Public|Private && Constant`).
                                 let mut should_panic_on_halt = false;
-                                // If the operation is a shift operator, check if the mode of the RHS is a constant.
-                                should_panic_on_halt |= is_shift_operator && mode_b.is_constant();
+                                // If the operation is a shift operator, check if the mode of the RHS is a constant and if the shift amount exceeds the bitwidth.
+                                should_panic_on_halt |= is_shift_operator && shift_exceeds_bitwidth && mode_b.is_constant();
+                                // If the operation is a division operator, check if the mode of the RHS is a constant.
+                                should_panic_on_halt |= is_division_operator && mode_b.is_constant();
 
                                 // If this iteration should succeed, ensure the evaluated and executed outputs match the expected output.
                                 if should_succeed {

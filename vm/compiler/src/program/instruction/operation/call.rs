@@ -147,7 +147,7 @@ impl<N: Network> Call<N> {
 impl<N: Network> Call<N> {
     /// Returns `true` if the instruction is a function call.
     #[inline]
-    pub fn is_function_call<A: circuit::Aleo<Network = N>>(&self, stack: &Stack<N, A>) -> Result<bool> {
+    pub fn is_function_call(&self, stack: &Stack<N>) -> Result<bool> {
         match self.operator() {
             // Check if the locator is for a function.
             CallOperator::Locator(locator) => {
@@ -165,7 +165,7 @@ impl<N: Network> Call<N> {
     #[inline]
     pub fn evaluate<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &Stack<N, A>,
+        stack: &Stack<N>,
         registers: &mut Registers<N, A>,
     ) -> Result<()> {
         // Load the operands values.
@@ -177,7 +177,16 @@ impl<N: Network> Call<N> {
             CallOperator::Locator(locator) => {
                 (stack.get_external_stack(locator.program_id())?.clone(), locator.resource())
             }
-            CallOperator::Resource(resource) => (stack.clone(), resource),
+            CallOperator::Resource(resource) => {
+                // TODO (howardwu): Revisit this decision to forbid calling internal functions. A record cannot be spent again.
+                //  But there are legitimate uses for passing a record through to an internal function.
+                //  We could invoke the internal function without a state transition, but need to match visibility.
+                if stack.program().contains_function(resource) {
+                    bail!("Cannot call '{resource}'. Use a closure ('closure {resource}:') instead.")
+                }
+
+                (stack.clone(), resource)
+            }
         };
 
         // If the operator is a closure, retrieve the closure and compute the output.
@@ -187,7 +196,13 @@ impl<N: Network> Call<N> {
                 bail!("Expected {} inputs, found {}", closure.inputs().len(), inputs.len())
             }
             // Evaluate the closure, and load the outputs.
-            substack.evaluate_closure(&closure, &inputs)?
+            substack.evaluate_closure::<A>(
+                &closure,
+                &inputs,
+                registers.call_stack(),
+                registers.caller()?,
+                registers.tvk()?,
+            )?
         }
         // If the operator is a function, retrieve the function and compute the output.
         else if let Ok(function) = substack.program().get_function(resource) {
@@ -195,8 +210,10 @@ impl<N: Network> Call<N> {
             if function.inputs().len() != inputs.len() {
                 bail!("Expected {} inputs, found {}", function.inputs().len(), inputs.len())
             }
-            // Evaluate the function, and load the outputs.
-            substack.evaluate_function(&function, &inputs)?
+            // Evaluate the function.
+            let response = substack.evaluate_function::<A>(registers.call_stack())?;
+            // Load the outputs.
+            response.outputs().to_vec()
         }
         // Else, throw an error.
         else {
@@ -216,7 +233,7 @@ impl<N: Network> Call<N> {
     #[inline]
     pub fn execute<A: circuit::Aleo<Network = N>>(
         &self,
-        stack: &Stack<N, A>,
+        stack: &Stack<N>,
         registers: &mut Registers<N, A>,
     ) -> Result<()> {
         // Load the operands values.
@@ -229,17 +246,28 @@ impl<N: Network> Call<N> {
             CallOperator::Locator(locator) => {
                 (stack.get_external_stack(locator.program_id())?.clone(), locator.resource())
             }
-            CallOperator::Resource(resource) => (stack.clone(), resource),
+            CallOperator::Resource(resource) => {
+                // TODO (howardwu): Revisit this decision to forbid calling internal functions. A record cannot be spent again.
+                //  But there are legitimate uses for passing a record through to an internal function.
+                //  We could invoke the internal function without a state transition, but need to match visibility.
+                if stack.program().contains_function(resource) {
+                    bail!("Cannot call '{resource}'. Use a closure ('closure {resource}:') instead.")
+                }
+
+                (stack.clone(), resource)
+            }
         };
 
         // If the operator is a closure, retrieve the closure and compute the output.
         let outputs = if let Ok(closure) = substack.program().get_closure(resource) {
-            // Ensure the number of inputs matches the number of input statements.
-            if closure.inputs().len() != inputs.len() {
-                bail!("Expected {} inputs, found {}", closure.inputs().len(), inputs.len())
-            }
             // Execute the closure, and load the outputs.
-            substack.execute_closure(&closure, &inputs, registers.call_stack())?
+            substack.execute_closure(
+                &closure,
+                &inputs,
+                registers.call_stack(),
+                registers.caller_circuit()?,
+                registers.tvk_circuit()?,
+            )?
         }
         // If the operator is a function, retrieve the function and compute the output.
         else if let Ok(function) = substack.program().get_function(resource) {
@@ -259,8 +287,6 @@ impl<N: Network> Call<N> {
             let (request, response) = {
                 // Eject the circuit inputs.
                 let inputs = inputs.eject_value();
-                // Retrieve the input types.
-                let input_types = function.input_types();
 
                 // Initialize an RNG.
                 let rng = &mut rand::thread_rng();
@@ -275,7 +301,7 @@ impl<N: Network> Call<N> {
                             *substack.program_id(),
                             *function.name(),
                             &inputs,
-                            &input_types,
+                            &function.input_types(),
                             rng,
                         )?;
 
@@ -288,13 +314,34 @@ impl<N: Network> Call<N> {
                         authorization.push(request.clone());
 
                         // Execute the request.
-                        let response = substack.execute_function(call_stack, rng)?;
+                        let response = substack.execute_function::<A, _>(call_stack, rng)?;
 
                         // Return the request and response.
                         (request, response)
                     }
+                    CallStack::CheckDeployment(_, private_key, ..) => {
+                        // Compute the request.
+                        let request = Request::sign(
+                            &private_key,
+                            *substack.program_id(),
+                            *function.name(),
+                            &inputs,
+                            &function.input_types(),
+                            rng,
+                        )?;
+
+                        // Retrieve the call stack.
+                        let mut call_stack = registers.call_stack();
+                        // Push the request onto the call stack.
+                        call_stack.push(request.clone())?;
+
+                        // Execute the request.
+                        let response = substack.execute_function::<A, _>(call_stack, rng)?;
+                        // Return the request and response.
+                        (request, response)
+                    }
                     // If the circuit is in evaluate mode, then throw an error.
-                    CallStack::Evaluate => {
+                    CallStack::Evaluate(..) => {
                         bail!("Cannot 'execute' a function in 'evaluate' mode.")
                     }
                     // If the circuit is in execute mode, then evaluate and execute the instructions.
@@ -308,13 +355,13 @@ impl<N: Network> Call<N> {
                         })?;
 
                         // Evaluate the function, and load the outputs.
-                        let console_outputs = substack.evaluate_function(&function, &inputs)?;
+                        let console_response = substack.evaluate_function::<A>(registers.call_stack().replicate())?;
                         // Execute the request.
-                        let response = substack.execute_function(registers.call_stack(), rng)?;
+                        let response = substack.execute_function::<A, _>(registers.call_stack(), rng)?;
                         // Ensure the values are equal.
-                        if console_outputs != response.outputs() {
+                        if console_response.outputs() != response.outputs() {
                             #[cfg(debug_assertions)]
-                            eprintln!("\n{:#?} != {:#?}\n", console_outputs, response.outputs());
+                            eprintln!("\n{:#?} != {:#?}\n", console_response.outputs(), response.outputs());
                             bail!("Function '{}' outputs do not match in a 'call' instruction.", function.name())
                         }
                         // Return the request and response.
@@ -335,8 +382,12 @@ impl<N: Network> Call<N> {
 
             // Inject the `caller` (from the request) as `Mode::Private`.
             let caller = circuit::Address::new(circuit::Mode::Private, *request.caller());
+            // Inject the `sk_tag` (from the request) as `Mode::Private`.
+            let sk_tag = circuit::Field::new(circuit::Mode::Private, *request.sk_tag());
             // Inject the `tvk` (from the request) as `Mode::Private`.
             let tvk = circuit::Field::new(circuit::Mode::Private, *request.tvk());
+            // Inject the `tcm` (from the request) as `Mode::Private`.
+            let tcm = circuit::Field::new(circuit::Mode::Private, *request.tcm());
             // Inject the input IDs (from the request) as `Mode::Public`.
             let input_ids = request
                 .input_ids()
@@ -350,16 +401,22 @@ impl<N: Network> Call<N> {
                 &function.input_types(),
                 &caller,
                 &program_id,
+                &sk_tag,
                 &tvk,
+                &tcm,
             ));
 
-            // Inject the response as `Mode::Private` (with the IDs as `Mode::Public`).
-            let response = circuit::Response::new(circuit::Mode::Private, response);
-            // Ensure the response matches its declared IDs.
-            A::assert(response.verify(&program_id, num_inputs, &tvk, &function.output_types()));
-
+            // Inject the outputs as `Mode::Private` (with the output IDs as `Mode::Public`).
+            let outputs = circuit::Response::process_outputs_from_callback(
+                &program_id,
+                num_inputs,
+                &tvk,
+                &tcm,
+                response.outputs().to_vec(),
+                &function.output_types(),
+            );
             // Return the circuit outputs.
-            response.outputs().to_vec()
+            outputs
         }
         // Else, throw an error.
         else {
@@ -377,18 +434,23 @@ impl<N: Network> Call<N> {
 
     /// Returns the output type from the given program and input types.
     #[inline]
-    pub fn output_types<A: circuit::Aleo<Network = N>>(
-        &self,
-        stack: &Stack<N, A>,
-        input_types: &[RegisterType<N>],
-    ) -> Result<Vec<RegisterType<N>>> {
+    pub fn output_types(&self, stack: &Stack<N>, input_types: &[RegisterType<N>]) -> Result<Vec<RegisterType<N>>> {
         // Retrieve the program and resource.
         let (is_external, program, resource) = match &self.operator {
             // Retrieve the program and resource from the locator.
             CallOperator::Locator(locator) => {
                 (true, stack.get_external_program(locator.program_id())?, locator.resource())
             }
-            CallOperator::Resource(resource) => (false, stack.program(), resource),
+            CallOperator::Resource(resource) => {
+                // TODO (howardwu): Revisit this decision to forbid calling internal functions. A record cannot be spent again.
+                //  But there are legitimate uses for passing a record through to an internal function.
+                //  We could invoke the internal function without a state transition, but need to match visibility.
+                if stack.program().contains_function(resource) {
+                    bail!("Cannot call '{resource}'. Use a closure ('closure {resource}:') instead.")
+                }
+
+                (false, stack.program(), resource)
+            }
         };
 
         // If the operator is a closure, retrieve the closure and compute the output types.
