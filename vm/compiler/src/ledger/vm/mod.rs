@@ -134,7 +134,7 @@ pub(crate) mod test_helpers {
     type CurrentNetwork = Testnet3;
 
     pub(crate) fn sample_vm() -> VM<CurrentNetwork, ProgramMemory<CurrentNetwork>> {
-        VM::new(ProgramStore::open().unwrap()).unwrap()
+        VM::new(ProgramStore::open(None).unwrap()).unwrap()
     }
 
     pub(crate) fn sample_program() -> Program<CurrentNetwork> {
@@ -169,7 +169,7 @@ function compute:
             .clone()
     }
 
-    pub(crate) fn sample_deployment_transaction() -> Transaction<CurrentNetwork> {
+    pub(crate) fn sample_deployment_transaction(rng: &mut TestRng) -> Transaction<CurrentNetwork> {
         static INSTANCE: OnceCell<Transaction<CurrentNetwork>> = OnceCell::new();
         INSTANCE
             .get_or_init(|| {
@@ -177,11 +177,11 @@ function compute:
                 let program = sample_program();
 
                 // Initialize a new caller.
-                let caller_private_key = crate::ledger::test_helpers::sample_genesis_private_key();
+                let caller_private_key = crate::ledger::test_helpers::sample_genesis_private_key(rng);
                 let caller_view_key = ViewKey::try_from(&caller_private_key).unwrap();
 
                 // Initialize the ledger.
-                let ledger = crate::ledger::test_helpers::sample_genesis_ledger();
+                let ledger = crate::ledger::test_helpers::sample_genesis_ledger(rng);
 
                 // Fetch the unspent records.
                 let records = ledger
@@ -195,8 +195,6 @@ function compute:
                 let credits = records.values().next().unwrap().clone();
                 let additional_fee = (credits, 10);
 
-                // Initialize the RNG.
-                let rng = &mut test_crypto_rng();
                 // Initialize the VM.
                 let vm = sample_vm();
                 // Deploy.
@@ -209,17 +207,17 @@ function compute:
             .clone()
     }
 
-    pub(crate) fn sample_execution_transaction() -> Transaction<CurrentNetwork> {
+    pub(crate) fn sample_execution_transaction(rng: &mut TestRng) -> Transaction<CurrentNetwork> {
         static INSTANCE: OnceCell<Transaction<CurrentNetwork>> = OnceCell::new();
         INSTANCE
             .get_or_init(|| {
                 // Initialize a new caller.
-                let caller_private_key = crate::ledger::test_helpers::sample_genesis_private_key();
+                let caller_private_key = crate::ledger::test_helpers::sample_genesis_private_key(rng);
                 let caller_view_key = ViewKey::try_from(&caller_private_key).unwrap();
                 let address = Address::try_from(&caller_private_key).unwrap();
 
                 // Initialize the ledger.
-                let ledger = crate::ledger::test_helpers::sample_genesis_ledger();
+                let ledger = crate::ledger::test_helpers::sample_genesis_ledger(rng);
 
                 // Fetch the unspent records.
                 let records = ledger
@@ -231,8 +229,6 @@ function compute:
                 // Select a record to spend.
                 let record = records.values().next().unwrap().clone();
 
-                // Initialize the RNG.
-                let rng = &mut test_crypto_rng();
                 // Initialize the VM.
                 let vm = sample_vm();
 
