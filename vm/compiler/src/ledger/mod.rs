@@ -85,7 +85,7 @@ pub const NUM_BLOCKS_PER_EPOCH: u32 = 1 << 8; // 256 blocks == ~1 hour
 pub const MAX_NUM_PROOFS: usize = 1 << 20; // 1,048,576
 
 /// The coinbase puzzle degree.
-const COINBASE_PUZZLE_DEGREE: u32 = (1 << 13) - 1;
+pub const COINBASE_PUZZLE_DEGREE: u32 = (1 << 13) - 1;
 
 // TODO (raychu86): Adjust these values based network expectations.
 /// The genesis block coinbase target.
