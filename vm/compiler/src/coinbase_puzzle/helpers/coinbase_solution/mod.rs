@@ -18,16 +18,15 @@ mod bytes;
 mod serialize;
 mod string;
 
-#[cfg(feature = "parallel")]
-use rayon::prelude::*;
-
 use super::*;
 
 /// The coinbase puzzle solution constructed by accumulating the individual prover solutions.
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct CoinbaseSolution<N: Network> {
-    pub partial_solutions: Vec<PartialSolution<N>>,
-    pub proof: KZGProof<N::PairingCurve>,
+    /// The partial solutions of the coinbase puzzle, which are aggregated into a single solution.
+    partial_solutions: Vec<PartialSolution<N>>,
+    /// The KZG proof of the coinbase solution.
+    proof: KZGProof<N::PairingCurve>,
 }
 
 impl<N: Network> CoinbaseSolution<N> {
@@ -36,80 +35,28 @@ impl<N: Network> CoinbaseSolution<N> {
         Self { partial_solutions, proof }
     }
 
-    pub fn verify(&self, verifying_key: &CoinbaseVerifyingKey<N>, epoch_challenge: &EpochChallenge<N>) -> Result<bool> {
-        // Ensure the coinbase solution is not empty.
-        if self.partial_solutions.is_empty() {
-            return Ok(false);
-        }
-
-        // Ensure the number of partial solutions does not exceed `MAX_NUM_PROOFS`.
-        if self.partial_solutions.len() > MAX_NUM_PROOFS {
-            return Ok(false);
-        }
-
-        // Ensure the proof is non-hiding.
-        if self.proof.is_hiding() {
-            return Ok(false);
-        }
-
-        // Compute the prover polynomials.
-        let prover_polynomials: Vec<_> = cfg_iter!(self.partial_solutions)
-            .map(|solution| {
-                // TODO: check difficulty of solution
-                solution.to_prover_polynomial(epoch_challenge)
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        // Compute the challenge points.
-        let mut challenge_points =
-            hash_commitments(self.partial_solutions.iter().map(|solution| *solution.commitment()))?;
-        ensure!(challenge_points.len() == self.partial_solutions.len() + 1, "Invalid number of challenge points");
-
-        // Pop the last challenge point as the accumulator challenge point.
-        let accumulator_point = match challenge_points.pop() {
-            Some(point) => point,
-            None => bail!("Missing the accumulator challenge point"),
-        };
-
-        // Compute the accumulator evaluation.
-        let mut accumulator_evaluation = cfg_iter!(prover_polynomials)
-            .zip(&challenge_points)
-            .fold(<N::PairingCurve as PairingEngine>::Fr::zero, |accumulator, (prover_polynomial, challenge_point)| {
-                accumulator + (prover_polynomial.evaluate(accumulator_point) * challenge_point)
-            })
-            .sum();
-        accumulator_evaluation *= &epoch_challenge.epoch_polynomial().evaluate(accumulator_point);
-
-        // Compute the accumulator commitment.
-        let commitments: Vec<_> = cfg_iter!(self.partial_solutions).map(|solution| solution.commitment().0).collect();
-        let fs_challenges = challenge_points.into_iter().map(|f| f.to_repr()).collect::<Vec<_>>();
-        let accumulator_commitment =
-            KZGCommitment::<N::PairingCurve>(VariableBase::msm(&commitments, &fs_challenges).into());
-
-        // Return the verification result.
-        Ok(KZG10::check(
-            verifying_key,
-            &accumulator_commitment,
-            accumulator_point,
-            accumulator_evaluation,
-            &self.proof,
-        )?)
+    /// Returns the partial solutions.
+    pub fn partial_solutions(&self) -> &[PartialSolution<N>] {
+        &self.partial_solutions
     }
 
-    /// Returns the cumulative target of the individual prover solutions.
+    /// Returns the KZG proof.
+    pub const fn proof(&self) -> &KZGProof<N::PairingCurve> {
+        &self.proof
+    }
+
+    /// Returns the number of partial solutions.
+    pub fn len(&self) -> usize {
+        self.partial_solutions.len()
+    }
+
+    /// Returns `true` if there are no partial solutions.
+    pub fn is_empty(&self) -> bool {
+        self.partial_solutions.is_empty()
+    }
+
+    /// Returns the cumulative sum of the prover solutions.
     pub fn to_cumulative_target(&self) -> Result<u128> {
-        // Ensure the coinbase solution is not empty.
-        ensure!(!self.partial_solutions.is_empty(), "The coinbase solution does not contain any partial solutions");
-
-        // Ensure the number of partial solutions does not exceed `MAX_NUM_PROOFS`.
-        if self.partial_solutions.len() > MAX_NUM_PROOFS {
-            bail!(
-                "The coinbase solution exceeds the allowed number of partial solutions. ({} > {})",
-                self.partial_solutions.len(),
-                MAX_NUM_PROOFS
-            );
-        }
-
         // Compute the cumulative target as a u128.
         self.partial_solutions.iter().try_fold(0u128, |cumulative, solution| {
             cumulative.checked_add(solution.to_target()? as u128).ok_or_else(|| anyhow!("Cumulative target overflowed"))
@@ -119,7 +66,7 @@ impl<N: Network> CoinbaseSolution<N> {
     /// Returns the accumulator challenge point.
     pub fn to_accumulator_point(&self) -> Result<Field<N>> {
         let mut challenge_points =
-            hash_commitments(self.partial_solutions.iter().map(|solution| *solution.commitment()))?;
+            hash_commitments(self.partial_solutions.iter().map(|solution| solution.commitment()))?;
         ensure!(challenge_points.len() == self.partial_solutions.len() + 1, "Invalid number of challenge points");
 
         // Pop the last challenge point as the accumulator challenge point.

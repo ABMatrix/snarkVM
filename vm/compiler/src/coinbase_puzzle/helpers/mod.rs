@@ -26,14 +26,10 @@ pub use partial_solution::*;
 mod prover_solution;
 pub use prover_solution::*;
 
-use crate::{
-    coinbase_puzzle::{hash_commitment, hash_commitments, CoinbasePuzzle},
-    MAX_NUM_PROOFS,
-};
+use crate::coinbase_puzzle::{hash_commitment, hash_commitments, CoinbasePuzzle};
 use console::{account::Address, prelude::*, types::Field};
 use snarkvm_algorithms::{
     fft::{domain::FFTPrecomputation, DensePolynomial, EvaluationDomain},
-    msm::VariableBase,
     polycommit::kzg10::{KZGCommitment, KZGProof, LagrangeBasis, Powers, VerifierKey, KZG10},
 };
 use snarkvm_curves::PairingEngine;
@@ -63,7 +59,7 @@ pub struct CoinbaseProvingKey<N: Network> {
     pub product_domain: EvaluationDomain<<N::PairingCurve as PairingEngine>::Fr>,
     /// Precomputation to speed up FFTs.
     pub fft_precomputation: FFTPrecomputation<<N::PairingCurve as PairingEngine>::Fr>,
-    /// Elements of the product domain
+    /// Elements of the product domain.
     pub product_domain_elements: Vec<<N::PairingCurve as PairingEngine>::Fr>,
     /// The verifying key of the coinbase puzzle.
     pub verifying_key: CoinbaseVerifyingKey<N>,
@@ -87,6 +83,7 @@ impl<N: Network> CoinbaseProvingKey<N> {
         }
     }
 
+    /// Returns the elements of the product domain.
     pub fn product_domain_elements(&self) -> &[<N::PairingCurve as PairingEngine>::Fr] {
         &self.product_domain_elements
     }

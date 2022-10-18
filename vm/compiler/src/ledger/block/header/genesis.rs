@@ -35,6 +35,8 @@ impl<N: Network> Header<N> {
         self.previous_state_root == Field::zero()
             // Ensure the transactions root is nonzero.
             && self.transactions_root != Field::zero()
+            // Ensure the coinbase accumulator point is zero.
+            && self.coinbase_accumulator_point == Field::zero()
             // Ensure the metadata is a genesis metadata.
             && self.metadata.is_genesis()
     }
@@ -81,8 +83,8 @@ mod tests {
         assert!(header.is_genesis());
 
         // Ensure the genesis block contains the following.
-        assert_eq!(*header.previous_state_root(), Field::zero());
-        assert_eq!(*header.coinbase_accumulator_point(), Field::zero());
+        assert_eq!(header.previous_state_root(), Field::zero());
+        assert_eq!(header.coinbase_accumulator_point(), Field::zero());
         assert_eq!(header.network(), CurrentNetwork::ID);
         assert_eq!(header.height(), 0);
         assert_eq!(header.round(), 0);
@@ -91,6 +93,6 @@ mod tests {
         assert_eq!(header.timestamp(), GENESIS_TIMESTAMP);
 
         // Ensure the genesis block does *not* contain the following.
-        assert_ne!(*header.transactions_root(), Field::zero());
+        assert_ne!(header.transactions_root(), Field::zero());
     }
 }

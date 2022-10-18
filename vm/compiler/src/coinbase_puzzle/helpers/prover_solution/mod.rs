@@ -36,19 +36,27 @@ impl<N: Network> ProverSolution<N> {
     }
 
     /// Returns `true` if the prover solution is valid.
-    pub fn verify(&self, verifying_key: &CoinbaseVerifyingKey<N>, epoch_challenge: &EpochChallenge<N>) -> Result<bool> {
+    pub fn verify(
+        &self,
+        verifying_key: &CoinbaseVerifyingKey<N>,
+        epoch_challenge: &EpochChallenge<N>,
+        proof_target: u64,
+    ) -> Result<bool> {
         // Ensure the proof is non-hiding.
         if self.proof.is_hiding() {
             return Ok(false);
         }
 
-        // TODO: check difficulty of solution.
-
-        // Compute the challenge point.
-        let challenge_point = hash_commitment(self.commitment())?;
+        // Ensure that the prover solution is greater than the proof target.
+        if self.to_target()? < proof_target {
+            bail!("Prover puzzle does not meet the proof target requirements.")
+        }
 
         // Compute the prover polynomial.
         let prover_polynomial = self.partial_solution.to_prover_polynomial(epoch_challenge)?;
+
+        // Compute the challenge point.
+        let challenge_point = hash_commitment(self.commitment())?;
 
         // Evaluate the epoch and prover polynomials at the challenge point.
         let epoch_evaluation = epoch_challenge.epoch_polynomial().evaluate(challenge_point);
@@ -58,11 +66,11 @@ impl<N: Network> ProverSolution<N> {
         let claimed_value = epoch_evaluation * prover_evaluation;
 
         // Check the KZG proof.
-        Ok(KZG10::check(verifying_key, self.commitment(), challenge_point, claimed_value, self.proof())?)
+        Ok(KZG10::check(verifying_key, &self.commitment(), challenge_point, claimed_value, self.proof())?)
     }
 
     /// Returns the address of the prover.
-    pub const fn address(&self) -> &Address<N> {
+    pub const fn address(&self) -> Address<N> {
         self.partial_solution.address()
     }
 
@@ -72,7 +80,7 @@ impl<N: Network> ProverSolution<N> {
     }
 
     /// Returns the commitment for the solution.
-    pub const fn commitment(&self) -> &KZGCommitment<N::PairingCurve> {
+    pub const fn commitment(&self) -> KZGCommitment<N::PairingCurve> {
         self.partial_solution.commitment()
     }
 
