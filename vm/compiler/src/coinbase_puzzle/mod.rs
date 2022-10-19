@@ -50,6 +50,8 @@ use std::sync::Arc;
 use rayon::prelude::*;
 use snarkvm_algorithms::crypto_hash::sha256d_to_u64;
 
+pub const DIFFICULTY_NOT_MET: &'static str = "difficult not met";
+
 #[derive(Clone)]
 pub enum CoinbasePuzzle<N: Network> {
     /// The prover contains the coinbase puzzle proving key.
@@ -184,7 +186,7 @@ impl<N: Network> CoinbasePuzzle<N> {
 
         // if difficulty not met,terminate current task
         if u64::MAX / sha256d_to_u64(&commitment.to_bytes_le()?) < proof_target {
-            return Err(anyhow!("difficult not met"));
+            return Err(anyhow!(DIFFICULTY_NOT_MET));
         }
 
         let point = hash_commitment(commitment)?;
