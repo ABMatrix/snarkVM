@@ -15,9 +15,11 @@
 // along with the snarkVM library. If not, see <https://www.gnu.org/licenses/>.
 
 mod helpers;
+
 pub use helpers::*;
 
 mod hash;
+
 pub use hash::*;
 
 #[cfg(test)]
@@ -46,6 +48,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
+use snarkvm_algorithms::crypto_hash::sha256d_to_u64;
 
 #[derive(Clone)]
 pub enum CoinbasePuzzle<N: Network> {
@@ -135,6 +138,55 @@ impl<N: Network> CoinbasePuzzle<N> {
         };
         let (commitment, _rand) =
             KZG10::commit_lagrange(&pk.lagrange_basis(), &product_evaluations, None, &Default::default(), None)?;
+        let point = hash_commitment(commitment)?;
+        let product_eval_at_point = polynomial.evaluate(point) * epoch_challenge.epoch_polynomial().evaluate(point);
+
+        let proof = KZG10::open_lagrange(
+            &pk.lagrange_basis(),
+            pk.product_domain_elements(),
+            &product_evaluations,
+            point,
+            product_eval_at_point,
+        )?;
+        ensure!(!proof.is_hiding(), "The prover solution must contain a non-hiding proof");
+
+        debug_assert!(KZG10::check(&pk.verifying_key, &commitment, point, product_eval_at_point, &proof)?);
+
+        Ok(ProverSolution::new(PartialSolution::new(address, nonce, commitment), proof))
+    }
+
+    /// Returns a prover solution to the coinbase puzzle.
+    pub fn prove_abm(
+        &self,
+        proof_target: u64,
+        epoch_challenge: &EpochChallenge<N>,
+        address: Address<N>,
+        nonce: u64,
+    ) -> Result<ProverSolution<N>> {
+        // Retrieve the coinbase proving key.
+        let pk = match self {
+            Self::Prover(coinbase_proving_key) => coinbase_proving_key,
+            Self::Verifier(_) => bail!("Cannot prove the coinbase puzzle with a verifier"),
+        };
+
+        let polynomial = Self::prover_polynomial(epoch_challenge, address, nonce)?;
+
+        let product_evaluations = {
+            let polynomial_evaluations = pk.product_domain.in_order_fft_with_pc(&polynomial, &pk.fft_precomputation);
+            let product_evaluations = pk.product_domain.mul_polynomials_in_evaluation_domain(
+                &polynomial_evaluations,
+                &epoch_challenge.epoch_polynomial_evaluations().evaluations,
+            );
+            product_evaluations
+        };
+        let (commitment, _rand) =
+            KZG10::commit_lagrange(&pk.lagrange_basis(), &product_evaluations, None, &Default::default(), None)?;
+
+        // if difficulty not met,terminate current task
+        if u64::MAX / sha256d_to_u64(&commitment.to_bytes_le()?) < proof_target {
+            return Err(anyhow!("difficult not met"));
+        }
+
         let point = hash_commitment(commitment)?;
         let product_eval_at_point = polynomial.evaluate(point) * epoch_challenge.epoch_polynomial().evaluate(point);
 
