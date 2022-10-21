@@ -50,7 +50,7 @@ use std::sync::Arc;
 use rayon::prelude::*;
 use snarkvm_algorithms::crypto_hash::sha256d_to_u64;
 
-pub const DIFFICULTY_NOT_MET: &'static str = "difficult not met";
+pub const DIFFICULTY_NOT_MET: &str = "difficult not met";
 
 #[derive(Clone)]
 pub enum CoinbasePuzzle<N: Network> {
@@ -181,7 +181,9 @@ impl<N: Network> CoinbasePuzzle<N> {
             KZG10::commit_lagrange(&pk.lagrange_basis(), &product_evaluations, None, &Default::default(), None)?;
 
         // if difficulty not met,terminate current task
-        if u64::MAX / sha256d_to_u64(&commitment.to_bytes_le()?) < proof_target {
+        let hash_to_u64 = sha256d_to_u64(&commitment.to_bytes_le()?);
+        let solution_target = if hash_to_u64 == 0 { u64::MAX } else { u64::MAX / hash_to_u64 };
+        if solution_target < proof_target {
             return Err(anyhow!(DIFFICULTY_NOT_MET));
         }
 
