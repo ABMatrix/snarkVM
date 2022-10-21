@@ -37,11 +37,14 @@ impl<N: Network> EpochChallenge<N> {
     /// Initializes a new epoch challenge.
     pub fn new(epoch_number: u32, epoch_block_hash: N::BlockHash, degree: u32) -> Result<Self> {
         // Construct the 'input' as '( epoch_number || epoch_block_hash )'
-        let input: Vec<u8> =
-            epoch_number.to_le_bytes().into_iter().chain(epoch_block_hash.to_bytes_le()?.into_iter()).collect();
-        let epoch_polynomial = hash_to_polynomial::<<N::PairingCurve as PairingEngine>::Fr>(&input, degree)?;
-        let domain = EvaluationDomain::new((2 * degree - 1) as usize).unwrap();
-        let epoch_polynomial_evaluations = epoch_polynomial.evaluate_over_domain_by_ref(domain);
+        let input: Vec<u8> = epoch_number.to_le_bytes().into_iter().chain(epoch_block_hash.to_bytes_le()?).collect();
+
+        let product_domain = CoinbasePuzzle::<N>::product_domain(degree)?;
+
+        let epoch_polynomial = hash_to_polynomial::<<N::PairingCurve as PairingEngine>::Fr>(&input, degree);
+        ensure!(u32::try_from(epoch_polynomial.degree()).is_ok(), "Degree is too large");
+
+        let epoch_polynomial_evaluations = epoch_polynomial.evaluate_over_domain_by_ref(product_domain);
         // Returns the epoch challenge.
         Ok(EpochChallenge { epoch_number, epoch_block_hash, epoch_polynomial, epoch_polynomial_evaluations })
     }
@@ -67,18 +70,16 @@ impl<N: Network> EpochChallenge<N> {
     }
 
     /// Returns the number of coefficients of the epoch polynomial.
-    pub fn degree(&self) -> Result<u32> {
-        // Cast the degree into a u32.
-        match u32::try_from(self.epoch_polynomial.degree()) {
-            Ok(degree) => Ok(degree),
-            Err(_) => bail!("Epoch polynomial degree ({}) is too large", self.epoch_polynomial.degree()),
-        }
+    pub fn degree(&self) -> u32 {
+        // Convert the degree into a u32.
+        // The `unwrap` is guaranteed to succeed as we check the degree is less
+        // than `u32::MAX` in `new`.
+        u32::try_from(self.epoch_polynomial.degree()).unwrap()
     }
 
     /// Returns the number of coefficients of the epoch polynomial.
     pub fn num_coefficients(&self) -> Result<u32> {
-        self.degree().and_then(|degree| {
-            degree.checked_add(1).ok_or_else(|| anyhow!("Epoch polynomial degree ({degree} + 1) overflows"))
-        })
+        let degree = self.degree();
+        degree.checked_add(1).ok_or_else(|| anyhow!("Epoch polynomial degree ({degree} + 1) overflows"))
     }
 }

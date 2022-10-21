@@ -29,12 +29,12 @@ pub struct PartialSolution<N: Network> {
     /// The nonce for the solution.
     nonce: u64,
     /// The commitment for the solution.
-    commitment: KZGCommitment<N::PairingCurve>,
+    commitment: PuzzleCommitment<N>,
 }
 
 impl<N: Network> PartialSolution<N> {
     /// Initializes a new instance of the partial solution.
-    pub const fn new(address: Address<N>, nonce: u64, commitment: KZGCommitment<N::PairingCurve>) -> Self {
+    pub const fn new(address: Address<N>, nonce: u64, commitment: PuzzleCommitment<N>) -> Self {
         Self { address, nonce, commitment }
     }
 
@@ -49,7 +49,7 @@ impl<N: Network> PartialSolution<N> {
     }
 
     /// Returns the commitment for the solution.
-    pub const fn commitment(&self) -> KZGCommitment<N::PairingCurve> {
+    pub const fn commitment(&self) -> PuzzleCommitment<N> {
         self.commitment
     }
 
@@ -63,6 +63,7 @@ impl<N: Network> PartialSolution<N> {
 
     /// Returns the target of the solution.
     pub fn to_target(&self) -> Result<u64> {
-        Ok(u64::MAX / sha256d_to_u64(&self.commitment.to_bytes_le()?))
+        let hash_to_u64 = sha256d_to_u64(&self.commitment.to_bytes_le()?);
+        if hash_to_u64 == 0 { Ok(u64::MAX) } else { Ok(u64::MAX / hash_to_u64) }
     }
 }

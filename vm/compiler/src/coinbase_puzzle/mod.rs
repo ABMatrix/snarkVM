@@ -28,7 +28,7 @@ mod tests;
 use crate::{UniversalSRS, MAX_PROVER_SOLUTIONS};
 use console::{
     account::Address,
-    prelude::{anyhow, bail, cfg_iter, ensure, Network, Result, ToBytes},
+    prelude::{anyhow, bail, cfg_iter, ensure, has_duplicates, Network, Result, ToBytes},
     program::cfg_into_iter,
 };
 use snarkvm_algorithms::{
@@ -84,11 +84,8 @@ impl<N: Network> CoinbasePuzzle<N> {
         // of coefficients. The degree of the product has `2n - 1` coefficients.
         //
         // Hence, we request the powers of beta for the interval [0, 2n].
-        let num_coefficients = config.degree + 1;
-        let product_num_coefficients = 2 * num_coefficients - 1;
-        let powers_of_beta_g = srs.powers_of_beta_g(0, product_num_coefficients.try_into()?)?.to_vec();
-        let product_domain =
-            EvaluationDomain::new((2 * config.degree - 1).try_into()?).ok_or_else(|| anyhow!("Invalid degree"))?;
+        let product_domain = Self::product_domain(config.degree)?;
+
         let lagrange_basis_at_beta_g = srs.lagrange_basis(product_domain)?;
         let fft_precomputation = product_domain.precompute_fft();
         let product_domain_elements = product_domain.elements().collect();
@@ -103,7 +100,6 @@ impl<N: Network> CoinbasePuzzle<N> {
         };
 
         let pk = CoinbaseProvingKey {
-            powers_of_beta_g,
             product_domain,
             product_domain_elements,
             lagrange_basis_at_beta_g,
@@ -210,7 +206,7 @@ impl<N: Network> CoinbasePuzzle<N> {
     ///
     /// # Note
     /// This method does *not* check that the prover solutions are valid.
-    pub fn accumulate(
+    pub fn accumulate_unchecked(
         &self,
         epoch_challenge: &EpochChallenge<N>,
         prover_solutions: &[ProverSolution<N>],
@@ -233,13 +229,14 @@ impl<N: Network> CoinbasePuzzle<N> {
             Self::Prover(coinbase_proving_key) => coinbase_proving_key,
             Self::Verifier(_) => bail!("Cannot accumulate the coinbase puzzle with a verifier"),
         };
+        ensure!(!has_duplicates(prover_solutions), "Cannot accumulate duplicate prover solutions");
 
         let (prover_polynomials, partial_solutions): (Vec<_>, Vec<_>) = cfg_iter!(prover_solutions)
             .filter_map(|solution| {
                 if solution.proof().is_hiding() {
                     return None;
                 }
-                let polynomial = solution.to_prover_polynomial(epoch_challenge).unwrap();
+                let polynomial = solution.to_prover_polynomial(epoch_challenge).ok()?;
                 Some((polynomial, PartialSolution::new(solution.address(), solution.nonce(), solution.commitment())))
             })
             .unzip();
@@ -399,6 +396,22 @@ impl<N: Network> CoinbasePuzzle<N> {
 }
 
 impl<N: Network> CoinbasePuzzle<N> {
+    /// Checks that the degree for the epoch and prover polynomial is within bounds,
+    /// and returns the evaluation domain for the product polynomial.
+    pub(crate) fn product_domain(degree: u32) -> Result<EvaluationDomain<N::Field>> {
+        ensure!(degree != 0, "Degree cannot be zero");
+        let num_coefficients = degree.checked_add(1).ok_or_else(|| anyhow!("Degree is too large"))?;
+        let product_num_coefficients = num_coefficients
+            .checked_mul(2)
+            .and_then(|t| t.checked_sub(1))
+            .ok_or_else(|| anyhow!("Degree is too large"))?;
+        assert_eq!(product_num_coefficients, 2 * degree + 1);
+        let product_domain =
+            EvaluationDomain::new(product_num_coefficients.try_into()?).ok_or_else(|| anyhow!("Invalid degree"))?;
+        assert_eq!(product_domain.size(), (product_num_coefficients as usize).checked_next_power_of_two().unwrap());
+        Ok(product_domain)
+    }
+
     /// Returns the prover polynomial for the coinbase puzzle.
     pub fn prover_polynomial(
         epoch_challenge: &EpochChallenge<N>,
@@ -413,6 +426,6 @@ impl<N: Network> CoinbasePuzzle<N> {
             bytes[68..].copy_from_slice(&nonce.to_le_bytes());
             bytes
         };
-        hash_to_polynomial::<<N::PairingCurve as PairingEngine>::Fr>(&input, epoch_challenge.degree()?)
+        Ok(hash_to_polynomial::<<N::PairingCurve as PairingEngine>::Fr>(&input, epoch_challenge.degree()))
     }
 }

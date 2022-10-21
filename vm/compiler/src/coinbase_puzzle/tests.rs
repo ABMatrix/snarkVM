@@ -43,11 +43,35 @@ fn test_coinbase_puzzle() {
                     puzzle.prove(&epoch_challenge, address, nonce).unwrap()
                 })
                 .collect::<Vec<_>>();
-            let full_solution = puzzle.accumulate(&epoch_challenge, &solutions).unwrap();
+            let full_solution = puzzle.accumulate_unchecked(&epoch_challenge, &solutions).unwrap();
             assert!(puzzle.verify(&full_solution, &epoch_challenge, 0u64, 0u64).unwrap());
 
             let bad_epoch_challenge = EpochChallenge::new(rng.next_u32(), Default::default(), degree).unwrap();
             assert!(!puzzle.verify(&full_solution, &bad_epoch_challenge, 0u64, 0u64).unwrap());
         }
     }
+}
+
+#[test]
+fn test_edge_case_for_degree() {
+    let mut rng = rand::thread_rng();
+
+    // Generate srs.
+    let max_degree = 1 << 15;
+    let max_config = PuzzleConfig { degree: max_degree };
+    let srs = CoinbasePuzzle::<Testnet3>::setup(max_config, &mut rng).unwrap();
+
+    // Generate PK and VK.
+    let degree = (1 << 13) - 1; // IF YOU ADD `- 1` THIS WILL PASS
+    let puzzle = CoinbasePuzzle::<Testnet3>::trim(&srs, PuzzleConfig { degree }).unwrap();
+
+    // Generate proof inputs
+    let private_key = PrivateKey::<Testnet3>::new(&mut rng).unwrap();
+    let address = Address::try_from(private_key).unwrap();
+    let epoch_challenge = EpochChallenge::new(rng.gen(), Default::default(), degree).unwrap();
+
+    // Generate a prover solution.
+    let prover_solution = puzzle.prove(&epoch_challenge, address, rng.gen()).unwrap();
+    let coinbase_solution = puzzle.accumulate_unchecked(&epoch_challenge, &[prover_solution]).unwrap();
+    assert!(puzzle.verify(&coinbase_solution, &epoch_challenge, 0u64, 0u64).unwrap());
 }

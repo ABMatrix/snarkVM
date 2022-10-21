@@ -30,7 +30,7 @@ use crate::coinbase_puzzle::{hash_commitment, hash_commitments, CoinbasePuzzle};
 use console::{account::Address, prelude::*, types::Field};
 use snarkvm_algorithms::{
     fft::{domain::FFTPrecomputation, DensePolynomial, EvaluationDomain},
-    polycommit::kzg10::{KZGCommitment, KZGProof, LagrangeBasis, Powers, VerifierKey, KZG10},
+    polycommit::kzg10::{KZGCommitment, KZGProof, LagrangeBasis, VerifierKey, KZG10},
 };
 use snarkvm_curves::PairingEngine;
 use snarkvm_utilities::{FromBytes, ToBytes};
@@ -40,6 +40,11 @@ use std::{
     borrow::Cow,
     io::{Read, Result as IoResult, Write},
 };
+
+/// The commitment to the polynomial.
+pub type PuzzleCommitment<N> = KZGCommitment<<N as Environment>::PairingCurve>;
+/// The proof of opening the polynomial, for the solution.
+pub type PuzzleProof<N> = KZGProof<<N as Environment>::PairingCurve>;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PuzzleConfig {
@@ -51,8 +56,6 @@ pub type CoinbaseVerifyingKey<N> = VerifierKey<<N as Environment>::PairingCurve>
 
 #[derive(Clone, Debug)]
 pub struct CoinbaseProvingKey<N: Network> {
-    /// The key used to commit to polynomials.
-    pub powers_of_beta_g: Vec<<N::PairingCurve as PairingEngine>::G1Affine>,
     /// The key used to commit to polynomials in Lagrange basis.
     pub lagrange_basis_at_beta_g: Vec<<N::PairingCurve as PairingEngine>::G1Affine>,
     /// Domain used to compute the product of the epoch polynomial and the prover polynomial.
@@ -66,14 +69,6 @@ pub struct CoinbaseProvingKey<N: Network> {
 }
 
 impl<N: Network> CoinbaseProvingKey<N> {
-    /// Obtain powers for the underlying KZG10 construction
-    pub fn powers(&self) -> Powers<N::PairingCurve> {
-        Powers {
-            powers_of_beta_g: self.powers_of_beta_g.as_slice().into(),
-            powers_of_beta_times_gamma_g: Cow::Owned(vec![]),
-        }
-    }
-
     /// Obtain elements of the SRS in the lagrange basis powers.
     pub fn lagrange_basis(&self) -> LagrangeBasis<N::PairingCurve> {
         LagrangeBasis {
