@@ -49,7 +49,6 @@ use console::{
     program::{Ciphertext, Identifier, Plaintext, ProgramID, Record},
     types::{Field, Group},
 };
-use snarkvm_parameters::testnet3::GenesisBytes;
 
 use anyhow::Result;
 use indexmap::IndexMap;
@@ -112,7 +111,7 @@ impl<N: Network> Ledger<N, BlockMemory<N>, ProgramMemory<N>> {
     /// Initializes a new instance of `Ledger` with the genesis block.
     pub fn new(dev: Option<u16>) -> Result<Self> {
         // Load the genesis block.
-        let genesis = Block::<N>::from_bytes_le(GenesisBytes::load_bytes())?;
+        let genesis = Block::<N>::from_bytes_le(N::genesis_bytes())?;
         // Initialize the ledger.
         Self::new_with_genesis(&genesis, genesis.signature().to_address(), dev)
     }
@@ -191,7 +190,7 @@ impl<N: Network, B: BlockStorage<N>, P: ProgramStorage<N>> Ledger<N, B, P> {
             // If there are no previous hashes, add the genesis block.
             None => {
                 // Load the genesis block.
-                let genesis = Block::<N>::from_bytes_le(GenesisBytes::load_bytes())?;
+                let genesis = Block::<N>::from_bytes_le(N::genesis_bytes())?;
                 // Add the genesis block.
                 ledger.blocks.insert(&genesis)?;
                 // Return the genesis height.
@@ -218,7 +217,11 @@ impl<N: Network, B: BlockStorage<N>, P: ProgramStorage<N>> Ledger<N, B, P> {
         ledger.block_tree.append(&hashes)?;
 
         // Safety check the existence of every block.
-        (0..=latest_height).into_par_iter().try_for_each(|height| {
+        #[cfg(feature = "parallel")]
+        let heights_iter = (0..=latest_height).into_par_iter();
+        #[cfg(not(feature = "parallel"))]
+        let mut heights_iter = (0..=latest_height).into_iter();
+        heights_iter.try_for_each(|height| {
             ledger.get_block(height)?;
             Ok::<_, Error>(())
         })?;
@@ -467,9 +470,14 @@ impl<N: Network, B: BlockStorage<N>, P: ProgramStorage<N>> Ledger<N, B, P> {
         }
 
         // Ensure each transaction is well-formed and unique.
-        if !block.transactions().par_iter().all(|(_, transaction)| self.check_transaction(transaction).is_ok()) {
-            bail!("Invalid transaction found in the transactions list");
-        }
+        #[cfg(feature = "parallel")]
+        let transactions_iter = block.transactions().par_iter();
+        #[cfg(not(feature = "parallel"))]
+        let mut transactions_iter = block.transactions().iter();
+        transactions_iter.try_for_each(|(_, transaction)| {
+            self.check_transaction(transaction)
+                .map_err(|e| anyhow!("Invalid transaction found in the transactions list: {e}"))
+        })?;
 
         /* Fees */
 
@@ -889,25 +897,20 @@ pub(crate) mod test_helpers {
     }
 
     pub(crate) fn sample_genesis_ledger(rng: &mut TestRng) -> CurrentLedger {
-        static INSTANCE: OnceCell<CurrentLedger> = OnceCell::new();
-        INSTANCE
-            .get_or_init(|| {
-                // Sample the genesis private key.
-                let private_key = sample_genesis_private_key(rng);
-                // Sample the genesis block.
-                let genesis = sample_genesis_block_with_pk(rng, private_key);
+        // Sample the genesis private key.
+        let private_key = sample_genesis_private_key(rng);
+        // Sample the genesis block.
+        let genesis = sample_genesis_block_with_pk(rng, private_key);
 
-                // Initialize the ledger with the genesis block and the associated private key.
-                let address = Address::try_from(&private_key).unwrap();
-                let ledger = CurrentLedger::new_with_genesis(&genesis, address, None).unwrap();
-                assert_eq!(0, ledger.latest_height());
-                assert_eq!(genesis.hash(), ledger.latest_hash());
-                assert_eq!(genesis.round(), ledger.latest_round());
-                assert_eq!(genesis, ledger.get_block(0).unwrap());
+        // Initialize the ledger with the genesis block and the associated private key.
+        let address = Address::try_from(&private_key).unwrap();
+        let ledger = CurrentLedger::new_with_genesis(&genesis, address, None).unwrap();
+        assert_eq!(0, ledger.latest_height());
+        assert_eq!(genesis.hash(), ledger.latest_hash());
+        assert_eq!(genesis.round(), ledger.latest_round());
+        assert_eq!(genesis, ledger.get_block(0).unwrap());
 
-                ledger
-            })
-            .clone()
+        ledger
     }
 }
 
@@ -959,7 +962,7 @@ mod tests {
     #[test]
     fn test_new() {
         // Load the genesis block.
-        let genesis = Block::<CurrentNetwork>::from_bytes_le(GenesisBytes::load_bytes()).unwrap();
+        let genesis = Block::<CurrentNetwork>::from_bytes_le(CurrentNetwork::genesis_bytes()).unwrap();
 
         // Initialize a ledger with the genesis block.
         let ledger = CurrentLedger::new(None).unwrap();
@@ -972,7 +975,7 @@ mod tests {
     #[test]
     fn test_from() {
         // Load the genesis block.
-        let genesis = Block::<CurrentNetwork>::from_bytes_le(GenesisBytes::load_bytes()).unwrap();
+        let genesis = Block::<CurrentNetwork>::from_bytes_le(CurrentNetwork::genesis_bytes()).unwrap();
         // Initialize the address.
         let address =
             Address::<CurrentNetwork>::from_str("aleo1q6qstg8q8shwqf5m6q5fcenuwsdqsvp4hhsgfnx5chzjm3secyzqt9mxm8")
