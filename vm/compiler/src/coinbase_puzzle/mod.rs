@@ -184,6 +184,7 @@ impl<N: Network> CoinbasePuzzle<N> {
         let hash_to_u64 = sha256d_to_u64(&commitment.to_bytes_le()?);
         let solution_target = if hash_to_u64 == 0 { u64::MAX } else { u64::MAX / hash_to_u64 };
         if solution_target < proof_target {
+            trace!("{} {} but {}", DIFFICULTY_NOT_MET, proof_target, solution_target);
             return Err(anyhow!(DIFFICULTY_NOT_MET));
         }
 
