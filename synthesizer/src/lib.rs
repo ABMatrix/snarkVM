@@ -24,17 +24,26 @@
 #[macro_use]
 extern crate tracing;
 
-mod coinbase_puzzle;
+pub mod block;
+pub use block::*;
+
+pub mod coinbase_puzzle;
 pub use coinbase_puzzle::*;
 
-mod ledger;
-pub use ledger::*;
-
-mod process;
+pub mod process;
 pub use process::*;
 
-mod program;
+pub mod program;
 pub use program::*;
 
-mod snark;
+pub mod snark;
 pub use snark::*;
+
+pub mod state_path;
+pub use state_path::*;
+
+pub mod store;
+pub use store::*;
+
+pub mod vm;
+pub use vm::*;
