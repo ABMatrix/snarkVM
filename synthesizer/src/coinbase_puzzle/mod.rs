@@ -189,7 +189,7 @@ impl<N: Network> CoinbasePuzzle<N> {
             return Err(anyhow!(DIFFICULTY_NOT_MET));
         }
 
-        let point = hash_commitment(commitment)?;
+        let point = hash_commitment(&commitment)?;
         let product_eval_at_point = polynomial.evaluate(point) * epoch_challenge.epoch_polynomial().evaluate(point);
 
         let proof = KZG10::open_lagrange(
@@ -199,6 +199,7 @@ impl<N: Network> CoinbasePuzzle<N> {
             point,
             product_eval_at_point,
         )?;
+
         ensure!(!proof.is_hiding(), "The prover solution must contain a non-hiding proof");
 
         debug_assert!(KZG10::check(&pk.verifying_key, &commitment, point, product_eval_at_point, &proof)?);
