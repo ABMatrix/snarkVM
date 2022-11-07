@@ -36,7 +36,11 @@ macro_rules! impl_store_and_remote_fetch {
             use snarkvm_utilities::Write;
 
             #[cfg(not(feature = "no_std_out"))]
-            println!("{} - Storing parameters ({:?})", module_path!(), file_path);
+            {
+                use colored::*;
+                let output = format!("{:>15} - Storing file in {:?}", "Installation", file_path);
+                println!("{}", output.dimmed());
+            }
 
             // Ensure the folders up to the file path all exist.
             let mut directory_path = file_path.to_path_buf();
@@ -54,14 +58,25 @@ macro_rules! impl_store_and_remote_fetch {
         #[cfg(not(feature = "wasm"))]
         fn remote_fetch(buffer: &mut Vec<u8>, url: &str) -> Result<(), $crate::errors::ParameterError> {
             let mut easy = curl::easy::Easy::new();
+            easy.follow_location(true)?;
             easy.url(url)?;
+
             #[cfg(not(feature = "no_std_out"))]
             {
+                use colored::*;
+
+                let output = format!("{:>15} - Downloading \"{}\"", "Installation", url);
+                println!("{}", output.dimmed());
+
                 easy.progress(true)?;
                 easy.progress_function(|total_download, current_download, _, _| {
                     let percent = (current_download / total_download) * 100.0;
                     let size_in_megabytes = total_download as u64 / 1_048_576;
-                    print!("\r{} - {:.2}% complete ({:#} MB total)", module_path!(), percent, size_in_megabytes);
+                    let output = format!(
+                        "\r{:>15} - {:.2}% complete ({:#} MB total)",
+                        "Installation", percent, size_in_megabytes
+                    );
+                    print!("{}", output.dimmed());
                     true
                 })?;
             }
@@ -122,22 +137,24 @@ macro_rules! impl_load_bytes_logic_remote {
             std::fs::read(file_path)?
         } else {
             // Downloads the missing parameters and stores it in the local directory for use.
-            eprintln!(
-                "\nATTENTION - \"{}\" does not exist, downloading this file remotely and storing it locally. Please ensure \"{}\" is stored in {:?}.\n",
-                $filename, $filename, file_path
-            );
+             #[cfg(not(feature = "no_std_out"))]
+            {
+                use colored::*;
+                let path = format!("(in {:?})", file_path);
+                eprintln!(
+                    "\n⚠️  Attention - \"{}\" does not exist. Downloading and storing it {}.\n",
+                    $filename, path.dimmed()
+                );
+            }
+
+            // Construct the URL.
+            let url = format!("{}/{}", $remote_url, $filename);
 
             // Load remote file
             cfg_if::cfg_if! {
                 if #[cfg(not(feature = "wasm"))] {
-                    #[cfg(not(feature = "no_std_out"))]
-                    println!("{} - Downloading parameters...", module_path!());
-
                     let mut buffer = vec![];
-                    Self::remote_fetch(&mut buffer, &format!("{}/{}", $remote_url, $filename))?;
-
-                    #[cfg(not(feature = "no_std_out"))]
-                    println!("\n{} - Download complete", module_path!());
+                    Self::remote_fetch(&mut buffer, &url)?;
 
                     // Ensure the checksum matches.
                     let candidate_checksum = checksum!(&buffer);
@@ -149,7 +166,7 @@ macro_rules! impl_load_bytes_logic_remote {
                         Ok(()) => buffer,
                         Err(_) => {
                             eprintln!(
-                                "\nATTENTION - Failed to store \"{}\" locally. Please download this file manually and ensure it is stored in {:?}.\n",
+                                "\n❗ Error - Failed to store \"{}\" locally. Please download this file manually and ensure it is stored in {:?}.\n",
                                 $filename, file_path
                             );
                             buffer
@@ -157,7 +174,6 @@ macro_rules! impl_load_bytes_logic_remote {
                     }
                 } else if #[cfg(feature = "wasm")] {
                     let buffer = alloc::sync::Arc::new(parking_lot::RwLock::new(vec![]));
-                    let url = String::from($remote_url);
 
                     // NOTE(julesdesmit): I'm leaking memory here so that I can get a
                     // static reference to the url, which is needed to pass it into

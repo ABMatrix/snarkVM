@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with the snarkVM library. If not, see <https://www.gnu.org/licenses/>.
 
-mod batched;
-mod standard;
+pub mod batched;
+pub mod standard;
 
 #[cfg(all(feature = "cuda", target_arch = "x86_64"))]
 mod cuda;
@@ -90,7 +90,7 @@ mod tests {
         size: usize,
     ) -> (Vec<G>, Vec<F::BigInteger>) {
         let bases = (0..size).map(|_| G::rand(rng)).collect::<Vec<_>>();
-        let scalars = (0..size).map(|_| F::rand(rng).to_repr()).collect::<Vec<_>>();
+        let scalars = (0..size).map(|_| F::rand(rng).to_bigint()).collect::<Vec<_>>();
         (bases, scalars)
     }
 
