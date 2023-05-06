@@ -189,21 +189,42 @@ impl<F: PrimeField, MM: MarlinMode> AHPForR1CS<F, MM> {
         let (constraint_domain_elements, constraint_domain_eq_poly_vals) =
             precomputation_for_matrix_evals(&constraint_domain);
 
-        let [a_evals, b_evals, c_evals]: [_; 3] =
-            cfg_into_iter!([(&a, &non_zero_a_domain), (&b, &non_zero_b_domain), (&c, &non_zero_c_domain),])
-                .map(|(matrix, non_zero_domain)| {
-                    matrix_evals(
-                        matrix,
-                        non_zero_domain,
-                        &constraint_domain,
-                        &input_domain,
-                        &constraint_domain_elements,
-                        &constraint_domain_eq_poly_vals,
-                    )
-                })
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
+        let evals: Vec<_> = {
+            #[cfg(not(feature = "serial"))]
+                let iter = cfg_into_iter!([(&a, &non_zero_a_domain), (&b, &non_zero_b_domain), (&c, &non_zero_c_domain),]).into_par_iter();
+
+            #[cfg(feature = "serial")]
+                let iter = cfg_into_iter!([(&a, &non_zero_a_domain), (&b, &non_zero_b_domain), (&c, &non_zero_c_domain),]).into_iter();
+
+            iter.map(|(matrix, non_zero_domain)| {
+                matrix_evals(
+                    matrix,
+                    non_zero_domain,
+                    &constraint_domain,
+                    &input_domain,
+                    &constraint_domain_elements,
+                    &constraint_domain_eq_poly_vals,
+                )
+            }).collect()
+        };
+
+        // let [a_evals, b_evals, c_evals]: [_; 3] =
+        //     cfg_into_iter!([(&a, &non_zero_a_domain), (&b, &non_zero_b_domain), (&c, &non_zero_c_domain),])
+        //         .map(|(matrix, non_zero_domain)| {
+        //             matrix_evals(
+        //                 matrix,
+        //                 non_zero_domain,
+        //                 &constraint_domain,
+        //                 &input_domain,
+        //                 &constraint_domain_elements,
+        //                 &constraint_domain_eq_poly_vals,
+        //             )
+        //         })
+        //         .collect::<Vec<_>>()
+        //         .try_into()
+        //         .unwrap();
+
+        let [a_evals, b_evals, c_evals]: [_; 3]  = evals.try_into().unwrap();
 
         let result = Ok(IndexerState {
             constraint_domain,
