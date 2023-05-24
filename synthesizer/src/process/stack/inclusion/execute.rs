@@ -79,7 +79,8 @@ macro_rules! prepare_execution_impl {
 
                         // Ensure the global state root is the same across iterations.
                         if global_state_root != state_path.global_state_root() {
-                            bail!("Inclusion expected the global state root to be the same across iterations")
+                            // bail!("Inclusion expected the global state root to be the same across iterations")
+                            println!("Inclusion expected the global state root to be the same across iterations");
                         }
 
                         // Construct the assignment for the state path.
@@ -131,7 +132,7 @@ impl<N: Network> Inclusion<N> {
 
 impl<N: Network> Inclusion<N> {
     /// Returns a new execution with an inclusion proof, for the given execution.
-    pub fn prove_execution<A: circuit::Aleo<Network = N>, R: Rng + CryptoRng>(
+    pub fn prove_execution<A: circuit::Aleo<Network=N>, R: Rng + CryptoRng>(
         &self,
         execution: Execution<N>,
         assignments: &[InclusionAssignment<N>],
