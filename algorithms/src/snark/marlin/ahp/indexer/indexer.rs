@@ -197,22 +197,21 @@ impl<F: PrimeField, MM: MarlinMode> AHPForR1CS<F, MM> {
         let (constraint_domain_elements, constraint_domain_eq_poly_vals) =
             precomputation_for_matrix_evals(&constraint_domain);
 
-        let touple = [(&a, &non_zero_a_domain), (&b, &non_zero_b_domain), (&c, &non_zero_c_domain),];
-        let [a_evals, b_evals, c_evals]: [_; 3] =
-            cfg_into_iter!(touple)
-                .map(|(matrix, non_zero_domain)| {
-                    matrix_evals(
-                        matrix,
-                        non_zero_domain,
-                        &constraint_domain,
-                        &input_domain,
-                        &constraint_domain_elements,
-                        &constraint_domain_eq_poly_vals,
-                    )
-                })
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
+        let touple = [(&a, &non_zero_a_domain), (&b, &non_zero_b_domain), (&c, &non_zero_c_domain)];
+        let [a_evals, b_evals, c_evals]: [_; 3] = cfg_into_iter!(touple)
+            .map(|(matrix, non_zero_domain)| {
+                matrix_evals(
+                    matrix,
+                    non_zero_domain,
+                    &constraint_domain,
+                    &input_domain,
+                    &constraint_domain_elements,
+                    &constraint_domain_eq_poly_vals,
+                )
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
         let result = Ok(IndexerState {
             constraint_domain,

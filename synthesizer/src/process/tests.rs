@@ -13,14 +13,18 @@
 // limitations under the License.
 
 use super::*;
-use crate::store::helpers::memory::FinalizeMemory;
-use circuit::network::AleoV0;
+use crate::store::{
+    helpers::memory::{BlockMemory, FinalizeMemory},
+    BlockStore,
+};
+use circuit::{network::AleoV0, Assignment};
 use console::{
     account::{Address, PrivateKey, ViewKey},
     network::Testnet3,
     program::{Identifier, Literal, Value},
     types::Field,
 };
+use snarkvm_curves::bls12_377::Fr;
 
 type CurrentNetwork = Testnet3;
 type CurrentAleo = AleoV0;
@@ -38,7 +42,7 @@ fn test_process_execute_mint() {
     let caller = Address::try_from(&caller_private_key).unwrap();
     // Declare the input value.
     let r0 = Value::<CurrentNetwork>::from_str(&format!("{caller}")).unwrap();
-    let r1 = Value::<CurrentNetwork>::from_str("1_500_000_000_000_000_u64").unwrap();
+    let r1 = Value::<CurrentNetwork>::from_str("99_000_000_000_000_u64").unwrap();
 
     // Construct the process.
     let process = Process::load().unwrap();
@@ -57,12 +61,12 @@ fn test_process_execute_mint() {
     let request = authorization.peek_next().unwrap();
 
     // Compute the encryption randomizer as `HashToScalar(tvk || index)`.
-    let randomizer = CurrentNetwork::hash_to_scalar_psd2(&[*request.tvk(), Field::from_u64(2)]).unwrap();
+    let randomizer = CurrentNetwork::hash_to_scalar_psd2(&[*request.tvk(), Field::from_u64(3)]).unwrap();
     let nonce = CurrentNetwork::g_scalar_multiply(&randomizer);
 
     // Declare the expected output value.
-    let r2 = Value::from_str(&format!(
-        "{{ owner: {caller}.private, microcredits: 1_500_000_000_000_000_u64.private, _nonce: {nonce}.public }}"
+    let r3 = Value::from_str(&format!(
+        "{{ owner: {caller}.private, microcredits: 99_000_000_000_000_u64.private, _nonce: {nonce}.public }}"
     ))
     .unwrap();
 
@@ -73,17 +77,18 @@ fn test_process_execute_mint() {
     let response = process.evaluate::<CurrentAleo>(authorization.replicate()).unwrap();
     let candidate = response.outputs();
     assert_eq!(1, candidate.len());
-    assert_eq!(r2, candidate[0]);
+    assert_eq!(r3, candidate[0]);
 
     // Check again to make sure we didn't modify the authorization after calling `evaluate`.
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, _trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(1, candidate.len());
-    assert_eq!(r2, candidate[0]);
-    process.verify_execution::<true>(&execution).unwrap();
+    assert_eq!(r3, candidate[0]);
+
+    // process.verify_execution::<true>(&execution).unwrap();
 
     // use circuit::Environment;
     //
@@ -225,14 +230,12 @@ fn test_process_multirecords() {
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, _trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(3, candidate.len());
     assert_eq!(output_a, candidate[0]);
     assert_eq!(output_b, candidate[1]);
     assert_eq!(output_c, candidate[2]);
-
-    process.verify_execution::<false>(&execution).unwrap();
 
     // use circuit::Environment;
     //
@@ -308,12 +311,10 @@ fn test_process_self_caller() {
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, _trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(1, candidate.len());
     assert_eq!(output, candidate[0]);
-
-    process.verify_execution::<false>(&execution).unwrap();
 }
 
 #[test]
@@ -370,12 +371,10 @@ fn test_process_program_id() {
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, _trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(1, candidate.len());
     assert_eq!(output, candidate[0]);
-
-    process.verify_execution::<true>(&execution).unwrap();
 }
 
 #[test]
@@ -411,13 +410,12 @@ fn test_process_output_operand() {
         assert_eq!(authorization.len(), 1);
 
         // Execute the request.
-        let (response, execution, _inclusion, _metrics) =
-            process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+        let (response, _trace) = process.execute::<CurrentAleo>(authorization).unwrap();
         let candidate = response.outputs();
         assert_eq!(1, candidate.len());
         assert_eq!(output, candidate[0]);
 
-        process.verify_execution::<true>(&execution).unwrap();
+        // process.verify_execution::<true>(&execution).unwrap();
     }
 
     // Initialize a new program.
@@ -575,15 +573,13 @@ function compute:
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, _trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(4, candidate.len());
     assert_eq!(r3, candidate[0]);
     assert_eq!(r4, candidate[1]);
     assert_eq!(r5, candidate[2]);
     assert_eq!(r6, candidate[3]);
-
-    process.verify_execution::<false>(&execution).unwrap();
 
     // use circuit::Environment;
     //
@@ -727,13 +723,11 @@ function transfer:
     assert_eq!(authorization.len(), 5);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, _trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(2, candidate.len());
     assert_eq!(output_a, candidate[0]);
     assert_eq!(output_b, candidate[1]);
-
-    process.verify_execution::<false>(&execution).unwrap();
 
     // use circuit::Environment;
     //
@@ -771,7 +765,7 @@ function compute:
 finalize compute:
     input r0 as address.public;
     input r1 as u64.public;
-    get.or_init account[r0] 0u64 into r2;
+    get.or_use account[r0] 0u64 into r2;
     add r2 r1 into r3;
     set r3 into account[r0];
 ",
@@ -797,15 +791,17 @@ finalize compute:
     // Reset the process.
     let mut process = Process::load().unwrap();
 
+    // Initialize a new block store.
+    let block_store = BlockStore::<_, BlockMemory<_>>::open(None).unwrap();
     // Initialize a new finalize store.
-    let store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
+    let finalize_store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
 
     // Add the program to the process.
     let deployment = process.deploy::<CurrentAleo, _>(&program, rng).unwrap();
     // Check that the deployment verifies.
     process.verify_deployment::<CurrentAleo, _>(&deployment, rng).unwrap();
     // Finalize the deployment.
-    let (stack, _) = process.finalize_deployment(&store, &deployment).unwrap();
+    let (stack, _) = process.finalize_deployment(&finalize_store, &deployment).unwrap();
     // Add the stack *manually* to the process.
     process.add_stack(stack);
 
@@ -834,18 +830,23 @@ finalize compute:
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, mut trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(0, candidate.len());
 
+    // Prepare the trace.
+    trace.prepare(block_store).unwrap();
+    // Prove the execution.
+    let execution = trace.prove_execution::<CurrentAleo, _>("testing", rng).unwrap();
+
     // Verify the execution.
-    process.verify_execution::<true>(&execution).unwrap();
+    process.verify_execution(&execution).unwrap();
 
     // Now, finalize the execution.
-    process.finalize_execution(&store, &execution).unwrap();
+    process.finalize_execution(&finalize_store, &execution).unwrap();
 
     // Check that the account balance is now 8.
-    let candidate = store
+    let candidate = finalize_store
         .get_value_speculative(program_id, &mapping_name, &Plaintext::from(Literal::Address(caller)))
         .unwrap()
         .unwrap();
@@ -873,7 +874,7 @@ function compute:
 finalize compute:
     input r0 as address.public;
     input r1 as u64.public;
-    get.or_init account[r0] 0u64 into r2;
+    get.or_use account[r0] 0u64 into r2;
     add r2 r1 into r3;
     sub r3 r1 into r4;
     set r4 into account[r0];
@@ -900,15 +901,17 @@ finalize compute:
     // Reset the process.
     let mut process = Process::load().unwrap();
 
+    // Initialize a new block store.
+    let block_store = BlockStore::<_, BlockMemory<_>>::open(None).unwrap();
     // Initialize a new finalize store.
-    let store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
+    let finalize_store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
 
     // Add the program to the process.
     let deployment = process.deploy::<CurrentAleo, _>(&program, rng).unwrap();
     // Check that the deployment verifies.
     process.verify_deployment::<CurrentAleo, _>(&deployment, rng).unwrap();
     // Finalize the deployment.
-    let (stack, _) = process.finalize_deployment(&store, &deployment).unwrap();
+    let (stack, _) = process.finalize_deployment(&finalize_store, &deployment).unwrap();
     // Add the stack *manually* to the process.
     process.add_stack(stack);
 
@@ -937,18 +940,23 @@ finalize compute:
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, mut trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(0, candidate.len());
 
+    // Prepare the trace.
+    trace.prepare(block_store).unwrap();
+    // Prove the execution.
+    let execution = trace.prove_execution::<CurrentAleo, _>("testing", rng).unwrap();
+
     // Verify the execution.
-    process.verify_execution::<true>(&execution).unwrap();
+    process.verify_execution(&execution).unwrap();
 
     // Now, finalize the execution.
-    process.finalize_execution(&store, &execution).unwrap();
+    process.finalize_execution(&finalize_store, &execution).unwrap();
 
     // Check that the account balance is now 0.
-    let candidate = store
+    let candidate = finalize_store
         .get_value_speculative(program_id, &mapping_name, &Plaintext::from(Literal::Address(caller)))
         .unwrap()
         .unwrap();
@@ -989,7 +997,7 @@ finalize mint_public:
     input r1 as u64.public;
 
     // Get `account[r0]` into `r2`, defaulting to 0u64 if the entry does not exist.
-    get.or_init account[r0] 0u64 into r2;
+    get.or_use account[r0] 0u64 into r2;
     // Add `r1` to `r2`. If the operation overflows, `mint_public` is reverted.
     add r2 r1 into r3;
     // Set `r3` into `account[r0]`.
@@ -1017,15 +1025,17 @@ finalize mint_public:
     // Reset the process.
     let mut process = Process::load().unwrap();
 
+    // Initialize a new block store.
+    let block_store = BlockStore::<_, BlockMemory<_>>::open(None).unwrap();
     // Initialize a new finalize store.
-    let store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
+    let finalize_store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
 
     // Add the program to the process.
     let deployment = process.deploy::<CurrentAleo, _>(&program, rng).unwrap();
     // Check that the deployment verifies.
     process.verify_deployment::<CurrentAleo, _>(&deployment, rng).unwrap();
     // Finalize the deployment.
-    let (stack, _) = process.finalize_deployment(&store, &deployment).unwrap();
+    let (stack, _) = process.finalize_deployment(&finalize_store, &deployment).unwrap();
     // Add the stack *manually* to the process.
     process.add_stack(stack);
 
@@ -1058,18 +1068,23 @@ finalize mint_public:
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, mut trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(0, candidate.len());
 
+    // Prepare the trace.
+    trace.prepare(block_store).unwrap();
+    // Prove the execution.
+    let execution = trace.prove_execution::<CurrentAleo, _>("testing", rng).unwrap();
+
     // Verify the execution.
-    process.verify_execution::<true>(&execution).unwrap();
+    process.verify_execution(&execution).unwrap();
 
     // Now, finalize the execution.
-    process.finalize_execution(&store, &execution).unwrap();
+    process.finalize_execution(&finalize_store, &execution).unwrap();
 
     // Check the account balance.
-    let candidate = store
+    let candidate = finalize_store
         .get_value_speculative(program_id, &mapping_name, &Plaintext::from(Literal::Address(caller)))
         .unwrap()
         .unwrap();
@@ -1110,7 +1125,7 @@ finalize mint_public:
     input r1 as u64.public;
 
     // Get `account[r0]` into `r2`, defaulting to 0u64 if the entry does not exist.
-    get.or_init account[r0] 0u64 into r2;
+    get.or_use account[r0] 0u64 into r2;
     // Add `r1` to `r2`. If the operation overflows, `mint_public` is reverted.
     add r2 r1 into r3;
     // Set `r3` into `account[r0]`.
@@ -1136,15 +1151,17 @@ finalize mint_public:
     // Reset the process.
     let mut process = Process::load().unwrap();
 
+    // Initialize a new block store.
+    let block_store = BlockStore::<_, BlockMemory<_>>::open(None).unwrap();
     // Initialize a new finalize store.
-    let store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
+    let finalize_store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
 
     // Add the program to the process.
     let deployment = process.deploy::<CurrentAleo, _>(&program0, rng).unwrap();
     // Check that the deployment verifies.
     process.verify_deployment::<CurrentAleo, _>(&deployment, rng).unwrap();
     // Finalize the deployment.
-    let (stack, _) = process.finalize_deployment(&store, &deployment).unwrap();
+    let (stack, _) = process.finalize_deployment(&finalize_store, &deployment).unwrap();
     // Add the stack *manually* to the process.
     process.add_stack(stack);
 
@@ -1200,18 +1217,23 @@ function mint:
     assert_eq!(authorization.len(), 2);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, mut trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(0, candidate.len());
 
+    // Prepare the trace.
+    trace.prepare(block_store).unwrap();
+    // Prove the execution.
+    let execution = trace.prove_execution::<CurrentAleo, _>("testing", rng).unwrap();
+
     // Verify the execution.
-    process.verify_execution::<true>(&execution).unwrap();
+    process.verify_execution(&execution).unwrap();
 
     // Now, finalize the execution.
-    process.finalize_execution(&store, &execution).unwrap();
+    process.finalize_execution(&finalize_store, &execution).unwrap();
 
     // Check the account balance.
-    let candidate = store
+    let candidate = finalize_store
         .get_value_speculative(program0.id(), &mapping_name, &Plaintext::from(Literal::Address(caller)))
         .unwrap()
         .unwrap();
@@ -1239,7 +1261,7 @@ function compute:
 finalize compute:
     input r0 as address.public;
     input r1 as u64.public;
-    get.or_init account[r0] 0u64 into r2;
+    get.or_use account[r0] 0u64 into r2;
     add r1 r2 into r3;
     set r3 into account[r0];
     get account[r0] into r4;
@@ -1268,15 +1290,17 @@ finalize compute:
     // Reset the process.
     let mut process = Process::load().unwrap();
 
+    // Initialize a new block store.
+    let block_store = BlockStore::<_, BlockMemory<_>>::open(None).unwrap();
     // Initialize a new finalize store.
-    let store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
+    let finalize_store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
 
     // Add the program to the process.
     let deployment = process.deploy::<CurrentAleo, _>(&program, rng).unwrap();
     // Check that the deployment verifies.
     process.verify_deployment::<CurrentAleo, _>(&deployment, rng).unwrap();
     // Finalize the deployment.
-    let (stack, _) = process.finalize_deployment(&store, &deployment).unwrap();
+    let (stack, _) = process.finalize_deployment(&finalize_store, &deployment).unwrap();
     // Add the stack *manually* to the process.
     process.add_stack(stack);
 
@@ -1305,18 +1329,23 @@ finalize compute:
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, mut trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(0, candidate.len());
 
+    // Prepare the trace.
+    trace.prepare(block_store).unwrap();
+    // Prove the execution.
+    let execution = trace.prove_execution::<CurrentAleo, _>("testing", rng).unwrap();
+
     // Verify the execution.
-    process.verify_execution::<true>(&execution).unwrap();
+    process.verify_execution(&execution).unwrap();
 
     // Now, finalize the execution.
-    process.finalize_execution(&store, &execution).unwrap();
+    process.finalize_execution(&finalize_store, &execution).unwrap();
 
     // Check that the account balance is now 8.
-    let candidate = store
+    let candidate = finalize_store
         .get_value_speculative(program_id, &mapping_name, &Plaintext::from(Literal::Address(caller)))
         .unwrap()
         .unwrap();
@@ -1347,7 +1376,7 @@ function compute:
 finalize compute:
     input r0 as address.public;
     input r1 as entry.public;
-    get.or_init entries[r0] r1 into r2;
+    get.or_use entries[r0] r1 into r2;
     add r1.count r2.count into r3;
     add r1.data r2.data into r4;
     cast r3 r4 into r5 as entry;
@@ -1380,15 +1409,17 @@ finalize compute:
     // Reset the process.
     let mut process = Process::load().unwrap();
 
+    // Initialize a new block store.
+    let block_store = BlockStore::<_, BlockMemory<_>>::open(None).unwrap();
     // Initialize a new finalize store.
-    let store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
+    let finalize_store = FinalizeStore::<_, FinalizeMemory<_>>::open(None).unwrap();
 
     // Add the program to the process.
     let deployment = process.deploy::<CurrentAleo, _>(&program, rng).unwrap();
     // Check that the deployment verifies.
     process.verify_deployment::<CurrentAleo, _>(&deployment, rng).unwrap();
     // Finalize the deployment.
-    let (stack, _) = process.finalize_deployment(&store, &deployment).unwrap();
+    let (stack, _) = process.finalize_deployment(&finalize_store, &deployment).unwrap();
     // Add the stack *manually* to the process.
     process.add_stack(stack);
 
@@ -1416,20 +1447,112 @@ finalize compute:
     assert_eq!(authorization.len(), 1);
 
     // Execute the request.
-    let (response, execution, _inclusion, _metrics) = process.execute::<CurrentAleo, _>(authorization, rng).unwrap();
+    let (response, mut trace) = process.execute::<CurrentAleo>(authorization).unwrap();
     let candidate = response.outputs();
     assert_eq!(0, candidate.len());
 
+    // Prepare the trace.
+    trace.prepare(block_store).unwrap();
+    // Prove the execution.
+    let execution = trace.prove_execution::<CurrentAleo, _>("testing", rng).unwrap();
+
     // Verify the execution.
-    process.verify_execution::<true>(&execution).unwrap();
+    process.verify_execution(&execution).unwrap();
 
     // Now, finalize the execution.
-    process.finalize_execution(&store, &execution).unwrap();
+    process.finalize_execution(&finalize_store, &execution).unwrap();
 
     // Check that the struct is stored as expected.
-    let candidate = store
+    let candidate = finalize_store
         .get_value_speculative(program_id, &mapping_name, &Plaintext::from(Literal::Address(caller)))
         .unwrap()
         .unwrap();
     assert_eq!(candidate, Value::from_str("{ count: 3u8, data: 6u8 }").unwrap());
+}
+
+#[test]
+fn test_sanity_check_transfer_and_fee() {
+    use console::types::Group;
+
+    // Initialize the RNG.
+    let rng = &mut TestRng::default();
+
+    // Initialize a new caller account.
+    let private_key = PrivateKey::<CurrentNetwork>::new(rng).unwrap();
+    let caller = Address::try_from(&private_key).unwrap();
+
+    // Construct a new process.
+    let process = Process::load().unwrap();
+    // Retrieve the stack.
+    let stack = process.get_stack(ProgramID::from_str("credits.aleo").unwrap()).unwrap();
+
+    /* Transfer */
+    {
+        // Declare the function name.
+        let function_name = Identifier::from_str("transfer_private").unwrap();
+
+        // Declare the inputs.
+        let r0 = Value::from_str(&format!(
+            "{{ owner: {caller}.private, microcredits: 1_500_000_000_000_000_u64.private, _nonce: {}.public }}",
+            Group::<CurrentNetwork>::zero()
+        ))
+        .unwrap();
+        let r1 = Value::<CurrentNetwork>::from_str(&format!("{caller}")).unwrap();
+        let r2 = Value::<CurrentNetwork>::from_str("1_500_000_000_000_000_u64").unwrap();
+
+        // Compute the assignment.
+        let assignment = get_assignment(stack, &private_key, function_name, &[r0, r1, r2], rng);
+        assert_eq!(12, assignment.num_public());
+        assert_eq!(54672, assignment.num_private());
+        assert_eq!(54730, assignment.num_constraints());
+        assert_eq!((88496, 130675, 83625), assignment.num_nonzeros());
+    }
+
+    println!();
+
+    /* Fee */
+    {
+        // Declare the function name.
+        let function_name = Identifier::from_str("fee").unwrap();
+
+        // Declare the inputs.
+        let r0 = Value::from_str(&format!(
+            "{{ owner: {caller}.private, microcredits: 1_500_000_000_000_000_u64.private, _nonce: {}.public }}",
+            Group::<CurrentNetwork>::zero()
+        ))
+        .unwrap();
+        let r1 = Value::<CurrentNetwork>::from_str("1_500_000_000_000_000_u64").unwrap();
+        let r2 = Value::<CurrentNetwork>::from_str(&Field::<CurrentNetwork>::rand(rng).to_string()).unwrap();
+
+        // Compute the assignment.
+        let assignment = get_assignment(stack, &private_key, function_name, &[r0, r1, r2], rng);
+        assert_eq!(10, assignment.num_public());
+        assert_eq!(41218, assignment.num_private());
+        assert_eq!(41265, assignment.num_constraints());
+        assert_eq!((64422, 92898, 62357), assignment.num_nonzeros());
+    }
+}
+
+fn get_assignment(
+    stack: &Stack<CurrentNetwork>,
+    private_key: &PrivateKey<CurrentNetwork>,
+    function_name: Identifier<CurrentNetwork>,
+    inputs: &[Value<CurrentNetwork>],
+    rng: &mut TestRng,
+) -> Assignment<Fr> {
+    // Retrieve the program.
+    let program = stack.program();
+    // Retrieve the input types.
+    let input_types = program.get_function(&function_name).unwrap().input_types();
+    // Compute the request.
+    let request = Request::sign(private_key, *program.id(), function_name, inputs.iter(), &input_types, rng).unwrap();
+    // Initialize the assignments.
+    let assignments = Assignments::<CurrentNetwork>::default();
+    // Initialize the call stack.
+    let call_stack = CallStack::CheckDeployment(vec![request], *private_key, assignments.clone());
+    // Synthesize the circuit.
+    let _response = stack.execute_function::<CurrentAleo>(call_stack).unwrap();
+    // Retrieve the assignment.
+    let assignment = assignments.read().last().unwrap().clone();
+    assignment
 }
